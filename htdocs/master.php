@@ -1,4 +1,7 @@
 <?php
+
+include_once 'includes/bootstrap.inc';
+
 $my_name="dev.blockexplorer.com";
 
 if(isset($_SERVER['HTTPS']))
@@ -78,8 +81,12 @@ function unknownerror($errno,$errstr,$errfile,$errline)
 		ob_end_clean();
 	}
 	senderror(500);
-	header("Content-type: text/plain");
-	echo "ERROR: unknown (Most likely my bitcoind stopped working or this page is too large/complex.)";
+
+    echo "<h1>Unknown error</h1>";
+    if(CONFIG_SHOW_ERRORS) {
+        echo "$errstr in $errfile on line $errline";
+    }
+
 	error_log("BBE unknown error: $errstr in $errfile on line $errline");
 	die();
 	return true;
