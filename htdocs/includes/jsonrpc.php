@@ -1,6 +1,9 @@
 <?php
 function rpcQuery ($method,$params=array(),$timeout=array("send"=>0,"receive"=>10))
 {
+    global $RPC;
+    $conf = $RPC;
+
 	//returns an associative array
 	//$reult["r"] contains the result in *decoded* JSON
 	//$result["e"] contains the error, or NULL if there is no error. This could be Bitcoin errors or rpcQuery errors.
@@ -9,16 +12,12 @@ function rpcQuery ($method,$params=array(),$timeout=array("send"=>0,"receive"=>1
 	//returning reasonable data.
 	//$time_start=microtime(true);
 	
-	$user="bitcoin";
-	$password="7AvathEBracheCra";
 	$id=8284; //pick any random number
-	$target="127.0.0.1";
-	$port=8332;
 
 	//construct query
 	$query=(object)array("method"=>$method,"params"=>$params,"id"=>$id);
 	$query=json_encode($query);
-	$auth=base64_encode($user.":".$password);
+	$auth=base64_encode($conf['user'].":".$conf['password']);
 	$query=$query."\r\n";
 	$length=strlen($query);
 
@@ -46,7 +45,7 @@ function rpcQuery ($method,$params=array(),$timeout=array("send"=>0,"receive"=>1
 		socket_set_option($socket,SOL_SOCKET, SO_RCVTIMEO, array("sec"=>$timeout["send"],"usec"=>0));
 	}
 	
-	if(socket_connect($socket,$target,$port)===false)
+	if(socket_connect($socket,$conf['target'],$conf['port'])===false)
 	{
 		$errorcode = socket_last_error();
 		error_log("JSON: Socket error $errorcode: ".__LINE__);

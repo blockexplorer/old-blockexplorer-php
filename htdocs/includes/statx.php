@@ -157,7 +157,7 @@ print GetCompact(eval(sys.argv[1]))
 
 function dbconnect()
 {
-	$db=@pg_connect("dbname=explore connect_timeout=2");
+	$db=@pg_connect("dbname=".DBNAME." connect_timeout=2");
 	pg_query("set statement_timeout to 60000;");
 	if(!$db)
 	{

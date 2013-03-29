@@ -280,7 +280,7 @@ if(MAINTMODE!==false&&$_SERVER["REMOTE_ADDR"]!="192.168.1.1")
 	goto headerend;
 }
 
-$db=@pg_connect("dbname=explore connect_timeout=5");
+$db=@pg_connect("dbname=".DBNAME." connect_timeout=5");
 pg_query("set statement_timeout to 60000;");
 if(!$db)
 {

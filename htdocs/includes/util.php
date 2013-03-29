@@ -1,7 +1,5 @@
 <?php
 
-define("ADDRESSVERSION","00"); //this is a hex byte
-
 function decodeHex($hex)
 {
 	$hex=strtoupper($hex);

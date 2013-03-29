@@ -1,7 +1,7 @@
 <?php
 header("Cache-control: no-cache");
-require_once 'testnet/util.php';
-require_once 'testnet/jsonrpc.php';
+require_once 'util-testnet.php';
+require_once 'jsonrpc-testnet.php';
 
 function decodeCompact($c)
 {

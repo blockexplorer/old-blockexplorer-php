@@ -243,19 +243,19 @@ unset($matches,$fullpath,$querystart,$path,$query,$last,$junk,$params,$count,$i,
 if($rts&&$testnet)
 {
 	ini_set("zlib.output_compression","Off");
-	require "testnet/statx.php";
+	require "includes/statx-testnet.php";
 }
 else if($rts)
 {
 	ini_set("zlib.output_compression","Off");
-	require "statx.php";
+	require "includes/statx.php";
 }
 else if($testnet)
 {
-	require "testnet/explore.php";
+	require "includes/explore-testnet.php";
 }
 else
 {
-	require "explore.php";
+	require "includes/explore.php";
 }
 ?>
