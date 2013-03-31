@@ -10,7 +10,7 @@ $error=false;
 $title="Error";
 
 require_once 'jsonrpc.php';
-require_once 'util.php';
+require_once 'encode.php';
 date_default_timezone_set('UTC');
 function error($message,$status=false)
 {

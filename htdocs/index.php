@@ -1,73 +1,7 @@
 <?php
 
 include_once 'includes/bootstrap.inc';
-
-$my_name="dev.blockexplorer.com";
-
-if(isset($_SERVER['HTTPS']))
-{
-	$scheme="https://";
-}
-else
-{
-	$scheme="http://";
-}
-
-if(isset($_SERVER['HTTP_HOST']))
-{
-	$server=$scheme.$_SERVER['HTTP_HOST'];
-}
-else
-{
-	$server=$scheme.$my_name;
-}
-
-function emptym($var)
-{
-	return empty($var)&&$var!==0&&$var!=="0";
-}
-
-function redirect($path,$type=302)
-{
-	global $scheme;
-	global $server;
-	if($type==301)
-	{
-		header ('HTTP/1.1 301 Moved Permanently');
-	}
-	header("Location: ".$server.$path);
-	die();
-}
-
-function mredirect($path)
-{
-	global $scheme;
-	global $my_name;
-	header ('HTTP/1.1 301 Moved Permanently');
-	header("Location: ".$scheme.$my_name.$path);
-	die();
-}
-
-function senderror($error)
-{
-	if($error==404)
-	{
-		header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
-	}
-	if($error==400)
-	{
-		header($_SERVER["SERVER_PROTOCOL"]." 400 Bad Request");
-	}
-	if($error==503)
-	{
-		header($_SERVER["SERVER_PROTOCOL"]." 503 Service Unavailable");
-		header("Retry-After: 7200");
-	}
-	if($error==500)
-	{
-		header($_SERVER["SERVER_PROTOCOL"]." 500 Internal Server Error");
-	}
-}
+include_once 'includes/http.inc';
 
 function unknownerror($errno,$errstr,$errfile,$errline)
 {
@@ -107,35 +41,16 @@ else
 	$query="?".substr($fullpath,$querystart+1);
 }
 
-//Redirect old theymos.ath.cx links
-if($_SERVER['SERVER_PORT']==64150)
-{
-	if(preg_match(",^/testnet/bbe,",$path))
-	{
-		$path=preg_replace(",^/testnet/bbe,","",$path);
-		$path="/testnet".$path;
-		mredirect($path.$query);
-	}
-	else if(preg_match(",^/bbe,",$path))
-	{
-		$path=preg_replace(",^/bbe,","",$path);
-		mredirect($path.$query);
-	}
-	else
-	{
-		mredirect($path.$query);
-	}
-}
-
 //odd hosts
 if(isset($_SERVER['HTTP_HOST']))
 {
 	$senthost=$_SERVER['HTTP_HOST'];
 }
-#if(isset($senthost)&&preg_match_all("/[a-zA-Z]/",$senthost,$junk)>6&&$senthost!=$my_name)
+
+#if(isset($senthost)&&preg_match_all("/[a-zA-Z]/",$senthost,$junk)>6&&$senthost!=HOSTNAME)
 #{
 #	$path=preg_replace("/^\/bbe/","",$path);
-#	mredirect($path.$query);
+#	redirect($path.$query, 301);
 #	die();
 #}
 
@@ -161,11 +76,15 @@ $testnet=false;
 $xml=false;
 $rts=false;
 
+function _empty($var) {
+	return empty($var)&&$var!==0&&$var!=="0";
+}
+
 //tag and remove special views
 $count=count($params);
 for($i=0;$i<$count;$i++)
 {
-	if(emptym($params[$i]))
+	if(_empty($params[$i]))
 	{
 		unset($params[$i]);
 	}
@@ -193,7 +112,7 @@ for($i=0;$i<$count;$i++)
 $number=0;
 foreach($params as $item)
 {
-	if(emptym($item))
+	if(_empty($item))
 	{
 		continue;
 	}

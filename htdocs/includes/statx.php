@@ -9,7 +9,7 @@ if($page!="mytransactions")
 {
 	header("Cache-control: no-cache");
 }
-require_once 'util.php';
+require_once 'encode.php';
 require_once 'jsonrpc.php';
 
 function cacheput($key,$data,$secs)

@@ -1,5 +1,7 @@
 <?php
 
+define('HOSTNAME', 'dev.blockexplorer.com');
+
 define('CONFIG_SHOW_ERRORS', true);
 //define('DBNAME', 'explore');
 //define('ADDRESSVERSION', '00');
