@@ -14,8 +14,8 @@ require_once 'encode.php';
 date_default_timezone_set('UTC');
 function error($message,$status=false)
 {
-global $error;
-//also run goto end
+    global $error;
+    //also run goto end
 	if($status!==false)
 	{
 		senderror($status);

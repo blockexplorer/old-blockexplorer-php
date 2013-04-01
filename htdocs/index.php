@@ -3,12 +3,13 @@
 include_once 'includes/bootstrap.inc';
 include_once 'includes/http.inc';
 
-function unknownerror($errno,$errstr,$errfile,$errline)
-{
+function _unknownerror($errno,$errstr,$errfile,$errline) {
 	//suppressed errors
 	if(error_reporting()==0)
 		return;
 	
+    header("Content-type: text/html");
+
 	//clear all buffers
 	for($i=ob_get_level();$i>0;$i--)
 	{
@@ -25,55 +26,65 @@ function unknownerror($errno,$errstr,$errfile,$errline)
 	die();
 	return true;
 }
-set_error_handler("unknownerror",E_ALL^E_DEPRECATED^E_NOTICE);
+set_error_handler("_unknownerror",E_ALL^E_DEPRECATED^E_NOTICE);
 
-//set up variables for checking
-$fullpath=$_SERVER['REQUEST_URI'];
-$querystart=strpos($fullpath,"?");
-if($querystart===false)
-{
-	$path=$fullpath;
-	$query="";
-}
-else
-{
-	$path=substr($fullpath,0,$querystart);
-	$query="?".substr($fullpath,$querystart+1);
-}
+function _parse_uri() {
+    global $_SERVER;
 
-//odd hosts
-if(isset($_SERVER['HTTP_HOST']))
-{
-	$senthost=$_SERVER['HTTP_HOST'];
+    //set up variables for checking
+    $fullpath=$_SERVER['REQUEST_URI'];
+    $querystart=strpos($fullpath,"?");
+    if($querystart === false) {
+        $path=$fullpath;
+        $query="";
+    } else {
+        $path=substr($fullpath,0,$querystart);
+        $query="?".substr($fullpath,$querystart+1);
+    }
+
+    return array($path, $query);
 }
 
-#if(isset($senthost)&&preg_match_all("/[a-zA-Z]/",$senthost,$junk)>6&&$senthost!=HOSTNAME)
-#{
-#	$path=preg_replace("/^\/bbe/","",$path);
-#	redirect($path.$query, 301);
-#	die();
-#}
+function _redirect_canonical($path, $query) {
+    //redirect odd link to canonical hostname 
+    if(!isset($_SERVER['HTTP_HOST'])) {
+        return;
+    }
 
-//trailing slash
-$last=strlen($path)-1;
-if($last!=0&&substr($path,$last,1)=="/")
-{
-	redirect(substr($path,0,$last).$query,301);
+    $senthost=$_SERVER['HTTP_HOST'];
+
+    if(preg_match_all("/[a-zA-Z]/",$senthost,$junk) > 6 && $senthost!=HOSTNAME) {
+        redirect($path.$query, 301);
+        die();
+    }
 }
 
-//set site-wide variables
-//fix delimiters
-if(isset($path[0])&&$path[0]=="/")
-{
-	$path=substr($path,1);
+function _redirect_trailing_slash($path, $query) {
+    //trailing slash
+
+    $last=strlen($path)-1;
+    if($last!=0 && substr($path,$last,1) == "/") {
+        redirect(substr($path,0,$last).$query,301);
+    }
 }
 
-$params=explode("/",$path,10);
+function _parse_path($path) {
+    $path = trim($path, "/");
+    $params=explode("/",$path,10);
+    return $params;
+}
+
+list($path, $query) = _parse_uri();
+
+REDIRECT_CANONICAL && _redirect_canonical();
+_redirect_trailing_slash($path, $query);
+
+$params = _parse_path($path);
 
 //defaults
 $page="home";
+
 $testnet=false;
-$xml=false;
 $rts=false;
 
 function _empty($var) {
@@ -82,30 +93,18 @@ function _empty($var) {
 
 //tag and remove special views
 $count=count($params);
-for($i=0;$i<$count;$i++)
+for($i=0; $i<$count; $i++)
 {
-	if(_empty($params[$i]))
-	{
+	if(_empty($params[$i])) {
 		unset($params[$i]);
-	}
-	else if($params[$i]=="testnet")
-	{
+	} else if($params[$i]=="testnet") {
 		$testnet=true;
 		unset($params[$i]);
-	}
-	else if($params[$i]=="xml"&&$testnet)
-	{
-		$xml=true;
-		unset($params[$i]);
-	}
-	else if($params[$i]=="q"&&!$xml)
-	{
+	} else if($params[$i]=="q") {
 		$rts=true;
 		unset($params[$i]);
-	}
-	else
-	{
-		break;
+	} else { 
+        break;
 	}
 }
 
@@ -156,7 +155,7 @@ for($i=1;$i<10;$i++)
 }
 
 //clear away junk variables
-unset($matches,$fullpath,$querystart,$path,$query,$last,$junk,$params,$count,$i,$number,$item);
+unset($matches,$path,$query,$junk,$params,$count,$i,$number,$item);
 
 //routing
 if($rts&&$testnet)

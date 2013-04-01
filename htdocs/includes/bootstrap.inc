@@ -1,6 +1,7 @@
 <?php
 
-define('HOSTNAME', 'dev.blockexplorer.com');
+define('HOSTNAME', 'blockexplorer.com');
+define('REDIRECT_CANONICAL', false);
 
 define('CONFIG_SHOW_ERRORS', true);
 //define('DBNAME', 'explore');
