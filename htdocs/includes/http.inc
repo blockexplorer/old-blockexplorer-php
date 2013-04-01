@@ -10,7 +10,7 @@ function redirect($path,$type=302)
     	$scheme="http://";
     }
 
-    $server=$scheme.$my_name;
+    $server=$scheme . HOSTNAME;
 
 	if($type==301) {
 		header ('HTTP/1.1 301 Moved Permanently');

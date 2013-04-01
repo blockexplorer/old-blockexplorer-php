@@ -28,131 +28,122 @@ function _unknownerror($errno,$errstr,$errfile,$errline) {
 }
 set_error_handler("_unknownerror",E_ALL^E_DEPRECATED^E_NOTICE);
 
-function _parse_uri() {
-    global $_SERVER;
+class Request {
+    public $page = "home";
+    public $params = array();
 
-    //set up variables for checking
-    $fullpath=$_SERVER['REQUEST_URI'];
-    $querystart=strpos($fullpath,"?");
-    if($querystart === false) {
-        $path=$fullpath;
-        $query="";
-    } else {
-        $path=substr($fullpath,0,$querystart);
-        $query="?".substr($fullpath,$querystart+1);
+    public $testnet = false; // testnet mode
+    public $rts = false; // real-time stats
+
+    private $path = null;
+    private $query = null;
+
+    private function parse_uri() {
+        global $_SERVER;
+
+        //set up variables for checking
+        $fullpath=$_SERVER['REQUEST_URI'];
+        $querystart=strpos($fullpath,"?");
+        if($querystart === false) {
+            $path=$fullpath;
+            $query="";
+        } else {
+            $path=substr($fullpath,0,$querystart);
+            $query="?".substr($fullpath,$querystart+1);
+        }
+
+        $this->path = $path;
+        $this->query = $query;
     }
 
-    return array($path, $query);
-}
+    private function redirect_canonical() {
+        //redirect odd link to canonical hostname 
+        global $_SERVER;
 
-function _redirect_canonical($path, $query) {
-    //redirect odd link to canonical hostname 
-    if(!isset($_SERVER['HTTP_HOST'])) {
-        return;
+        if(!isset($_SERVER['HTTP_HOST'])) {
+            return;
+        }
+
+        $senthost=$_SERVER['HTTP_HOST'];
+
+        if(preg_match_all("/[a-zA-Z]/",$senthost,$junk) > 6 && $senthost != HOSTNAME) {
+            redirect($this->path.$this->query, 301);
+            die();
+        }
     }
 
-    $senthost=$_SERVER['HTTP_HOST'];
+    private function redirect_trailing_slash() {
+        //trailing slash
 
-    if(preg_match_all("/[a-zA-Z]/",$senthost,$junk) > 6 && $senthost!=HOSTNAME) {
-        redirect($path.$query, 301);
-        die();
+        $last=strlen($this->path)-1;
+        if($last!=0 && substr($this->path,$last,1) == "/") {
+            redirect(substr($this->path,0,$last).$this->query,301);
+        }
+    }
+
+
+    private function fix_url() {
+        if(REDIRECT_CANONICAL) {
+            $this->redirect_canonical();
+        }
+        $this->redirect_trailing_slash();
+    }
+
+    function __construct() {
+        $this->parse_uri();
+        $this->fix_url();
+
+        $path = trim($this->path, "/");
+
+        function _notempty($var) {
+            return !(empty($var) && $var !== 0 && $var !== "0");
+        }
+        $params = array_filter(explode("/", $path, 10), "_notempty");
+
+        function _array_remove_item(&$array, $item) {
+            $index = array_search($item, $array);
+            if($index === false) {
+                return false;
+            }
+            array_splice($array, $index, 1);
+            return true;
+        }
+
+        if(!empty($params)) {
+            if(_array_remove_item($params, "testnet")) {
+                $this->testnet = true;
+            }
+            if(_array_remove_item($params, "q")) {
+                $this->rts = true;
+            }
+
+            $this->page = $params[0];
+            $this->params = array_map("urldecode", $params);
+        }
+
+        // sitemap special case
+        if($this->page == "sitemap.xml") {
+
+            $this->page = "sitemap";
+
+        } elseif(preg_match("/^sitemap.+\.xml$/", $page)) {
+
+            $matches=array();
+            preg_match("/^sitemap-([tab])-([0-9]+)\.xml$/", $page, $matches);
+
+            if(isset($matches[1])&&isset($matches[2]))
+            {
+                $this->params = array($matches[1], $matches[2]);
+                $this->page="sitemap";
+            }
+        }
     }
 }
 
-function _redirect_trailing_slash($path, $query) {
-    //trailing slash
-
-    $last=strlen($path)-1;
-    if($last!=0 && substr($path,$last,1) == "/") {
-        redirect(substr($path,0,$last).$query,301);
-    }
-}
-
-function _parse_path($path) {
-    $path = trim($path, "/");
-    $params=explode("/",$path,10);
-    return $params;
-}
-
-list($path, $query) = _parse_uri();
-
-REDIRECT_CANONICAL && _redirect_canonical();
-_redirect_trailing_slash($path, $query);
-
-$params = _parse_path($path);
-
-//defaults
-$page="home";
-
-$testnet=false;
-$rts=false;
-
-function _empty($var) {
-	return empty($var)&&$var!==0&&$var!=="0";
-}
-
-//tag and remove special views
-$count=count($params);
-for($i=0; $i<$count; $i++)
-{
-	if(_empty($params[$i])) {
-		unset($params[$i]);
-	} else if($params[$i]=="testnet") {
-		$testnet=true;
-		unset($params[$i]);
-	} else if($params[$i]=="q") {
-		$rts=true;
-		unset($params[$i]);
-	} else { 
-        break;
-	}
-}
-
-$number=0;
-foreach($params as $item)
-{
-	if(_empty($item))
-	{
-		continue;
-	}
-	if($number==0)
-	{
-		$page=$item;
-		$number++;
-	}
-	else
-	{
-		//creates variables like $param1,$param2, etc.
-		${"param".$number}=urldecode($item);
-		$number++;
-	}
-}
-
-//sitemap special case
-if($page=="sitemap.xml")
-{
-	$page="sitemap";
-}
-if(preg_match("/^sitemap.+\.xml$/",$page))
-{
-	$matches=array();
-	preg_match("/^sitemap-([tab])-([0-9]+)\.xml$/",$page,$matches);
-	if(isset($matches[1])&&isset($matches[2]))
-	{
-		$param1=$matches[1];
-		$param2=$matches[2];
-		$page="sitemap";
-	}
-}
-
-//padding
-for($i=1;$i<10;$i++)
-{
-	if(!isset(${"param".$i}))
-	{
-		${"param".$i}=null;
-	}
-}
+$request = new Request();
+header("Content-type: text/plain");
+print_r($request);
+die();
 
 //clear away junk variables
 unset($matches,$path,$query,$junk,$params,$count,$i,$number,$item);
