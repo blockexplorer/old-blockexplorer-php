@@ -38,6 +38,8 @@ class Request {
     private $path = null;
     private $query = null;
 
+    const redirect_canonical = REDIRECT_CANONICAL;
+
     private function parse_uri() {
         global $_SERVER;
 
@@ -81,9 +83,8 @@ class Request {
         }
     }
 
-
     private function fix_url() {
-        if(REDIRECT_CANONICAL) {
+        if(self::redirect_canonical) {
             $this->redirect_canonical();
         }
         $this->redirect_trailing_slash();
@@ -109,15 +110,15 @@ class Request {
             return true;
         }
 
-        if(!empty($params)) {
-            if(_array_remove_item($params, "testnet")) {
-                $this->testnet = true;
-            }
-            if(_array_remove_item($params, "q")) {
-                $this->rts = true;
-            }
+        if(_array_remove_item($params, "testnet")) {
+            $this->testnet = true;
+        }
+        if(_array_remove_item($params, "q")) {
+            $this->rts = true;
+        }
 
-            $this->page = $params[0];
+        if(!empty($params)) {
+            $this->page = array_shift($params);
             $this->params = array_map("urldecode", $params);
         }
 
@@ -126,7 +127,7 @@ class Request {
 
             $this->page = "sitemap";
 
-        } elseif(preg_match("/^sitemap.+\.xml$/", $page)) {
+        } else if(preg_match("/^sitemap.+\.xml$/", $page)) {
 
             $matches=array();
             preg_match("/^sitemap-([tab])-([0-9]+)\.xml$/", $page, $matches);
@@ -140,31 +141,17 @@ class Request {
     }
 }
 
-$request = new Request();
-header("Content-type: text/plain");
-print_r($request);
-die();
+$req = new Request();
+//header("Content-type: text/plain"); print_r($req); die();
 
-//clear away junk variables
-unset($matches,$path,$query,$junk,$params,$count,$i,$number,$item);
+if($req->rts) {
+	ini_set("zlib.output_compression","Off");
+	require "includes/statx.inc";
 
-//routing
-if($rts&&$testnet)
-{
-	ini_set("zlib.output_compression","Off");
-	require "includes/statx-testnet.php";
-}
-else if($rts)
-{
-	ini_set("zlib.output_compression","Off");
-	require "includes/statx.php";
-}
-else if($testnet)
-{
-	require "includes/explore-testnet.php";
-}
-else
-{
+    statx($req);
+
+} else {
 	require "includes/explore.php";
+    explore($req);
 }
 ?>
