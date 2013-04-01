@@ -35,7 +35,7 @@ class Request {
     public $testnet = false; // testnet mode
     public $rts = false; // real-time stats
 
-    private $path = null;
+    public $path = null;
     private $query = null;
 
     const redirect_canonical = REDIRECT_CANONICAL;

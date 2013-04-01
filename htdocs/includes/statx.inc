@@ -214,62 +214,66 @@ function statx($req) {
     }
 
     if($req->page=="home") {
-        echo '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+        $p = $req->path;
+
+        echo <<<"EOD"
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
 "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
 <title>Bitcoin real-time stats and tools</title>
 </head>
 <body>
-<p>Usage: /q/query[/parameter]</p>
+<p>Usage: $p/query[/parameter]</p>
 <p>Queries currently supported:</p>
 <h4>Real-time stats</h4>
 <p>While <a href="/">Bitcoin Block Explorer</a> can run at a delay of up to two minutes, these tools are all completely real-time.</p>
 <ul>
-<li><a href="/q/getdifficulty">getdifficulty</a> - shows the current difficulty as a multiple of the minimum difficulty (highest target).</li>
-<li><a href="/q/getblockcount">getblockcount</a> - shows the number of blocks in the longest block chain (not including the genesis block). Equivalent to Bitcoin\'s getblockcount.</li>
-<li><a href="/q/latesthash">latesthash</a> - shows the latest block hash.</li>
-<li><a href="/q/getblockhash">getblockhash</a> - returns the hash of a block at a given height.</li>
-<li><a href="/q/hextarget">hextarget</a> - shows the current target as a hexadecimal number.</li>
-<li><a href="/q/decimaltarget">decimaltarget</a> - shows the current target as a decimal number.</li>
-<li><a href="/q/probability">probability</a> - shows the probability of a single hash solving a block with the current difficulty.</li>
-<li><a href="/q/hashestowin">hashestowin</a> - shows the average number of hashes required to win a block with the current difficulty.</li>
-<li><a href="/q/nextretarget">nextretarget</a> - shows the block count when the next retarget will take place.</li>
-<li><a href="/q/estimate">estimate</a> - shows an estimate for the next difficulty.</li>
-<li><a href="/q/totalbc">totalbc</a> - shows the total number of Bitcoins in circulation. You can also <a href="/q/totalbc/50000">see the circulation at a particular number of blocks</a>.</li>
-<li><a href="/q/bcperblock">bcperblock</a> - shows the number of Bitcoins created per block. You can also <a href="/q/bcperblock/300000">see the BC per block at a particular number of blocks.</a></li>
+<li><a href="$p/getdifficulty">getdifficulty</a> - shows the current difficulty as a multiple of the minimum difficulty (highest target).</li>
+<li><a href="$p/getblockcount">getblockcount</a> - shows the number of blocks in the longest block chain (not including the genesis block). Equivalent to Bitcoin\'s getblockcount.</li>
+<li><a href="$p/latesthash">latesthash</a> - shows the latest block hash.</li>
+<li><a href="$p/getblockhash">getblockhash</a> - returns the hash of a block at a given height.</li>
+<li><a href="$p/hextarget">hextarget</a> - shows the current target as a hexadecimal number.</li>
+<li><a href="$p/decimaltarget">decimaltarget</a> - shows the current target as a decimal number.</li>
+<li><a href="$p/probability">probability</a> - shows the probability of a single hash solving a block with the current difficulty.</li>
+<li><a href="$p/hashestowin">hashestowin</a> - shows the average number of hashes required to win a block with the current difficulty.</li>
+<li><a href="$p/nextretarget">nextretarget</a> - shows the block count when the next retarget will take place.</li>
+<li><a href="$p/estimate">estimate</a> - shows an estimate for the next difficulty.</li>
+<li><a href="$p/totalbc">totalbc</a> - shows the total number of Bitcoins in circulation. You can also <a href="$p/totalbc/50000">see the circulation at a particular number of blocks</a>.</li>
+<li><a href="$p/bcperblock">bcperblock</a> - shows the number of Bitcoins created per block. You can also <a href="$p/bcperblock/300000">see the BC per block at a particular number of blocks.</a></li>
 </ul>
 <h4>Delayed stats</h4>
 <p>These use BBE data.</p>
 <ul>
-<li><a href="/q/avgtxsize">avgtxsize</a> - shows the average transaction data size in bytes. The parameter sets how many blocks to look back at (default 1000).</li>
-<li><a href="/q/avgtxvalue">avgtxvalue</a> - shows the average BTC input value per transaction, not counting generations. The parameter sets how many blocks to look back at (default 1000).</li>
-<li><a href="/q/avgblocksize">avgblocksize</a> - shows the average block size. The parameter sets how many blocks to look back at (default 1000).</li>
-<li><a href="/q/interval">interval</a> - shows the average interval between blocks, in seconds. The parameter sets how many blocks to look back at (default 1000).</li>
-<li><a href="/q/eta">eta</a> - shows the estimated number of seconds until the next retarget. The parameter sets how many blocks to look back at (default 1000). Blocks before the last retarget are never taken into account, however.</li>
-<li><a href="/q/avgtxnumber">avgtxnumber</a> - shows the average number of transactions per block. The parameter sets how many blocks to look back at (default 1000).</li>
-<li><a href="/q/getreceivedbyaddress">getreceivedbyaddress</a> - shows the total BTC received by an address.</li>
-<li><a href="/q/getsentbyaddress">getsentbyaddress</a> - shows the total BTC sent by an address. <i>Do not use this unless you know what you are doing: it does not do what you might expect.</i></li>
-<li><a href="/q/addressbalance">addressbalance</a> - shows received BTC minus sent BTC for an address. <i>Do not use this unless you know what you are doing: it does not do what you might expect.</i></li>
-<li><a href="/q/addressfirstseen">addressfirstseen</a> - shows the time at which an address was first seen on the network.</li>
-<li><a href="/q/nethash">nethash</a> - produces CSV statistics about block difficulty. The parameter sets the interval between data points.</li>
-<li><a href="/q/mytransactions">mytransactions</a> - dumps all transactions for given addresses</li>
-<li><a href="/q/reorglog">reorglog</a> - a log of reorg events</li>
+<li><a href="$p/avgtxsize">avgtxsize</a> - shows the average transaction data size in bytes. The parameter sets how many blocks to look back at (default 1000).</li>
+<li><a href="$p/avgtxvalue">avgtxvalue</a> - shows the average BTC input value per transaction, not counting generations. The parameter sets how many blocks to look back at (default 1000).</li>
+<li><a href="$p/avgblocksize">avgblocksize</a> - shows the average block size. The parameter sets how many blocks to look back at (default 1000).</li>
+<li><a href="$p/interval">interval</a> - shows the average interval between blocks, in seconds. The parameter sets how many blocks to look back at (default 1000).</li>
+<li><a href="$p/eta">eta</a> - shows the estimated number of seconds until the next retarget. The parameter sets how many blocks to look back at (default 1000). Blocks before the last retarget are never taken into account, however.</li>
+<li><a href="$p/avgtxnumber">avgtxnumber</a> - shows the average number of transactions per block. The parameter sets how many blocks to look back at (default 1000).</li>
+<li><a href="$p/getreceivedbyaddress">getreceivedbyaddress</a> - shows the total BTC received by an address.</li>
+<li><a href="$p/getsentbyaddress">getsentbyaddress</a> - shows the total BTC sent by an address. <i>Do not use this unless you know what you are doing: it does not do what you might expect.</i></li>
+<li><a href="$p/addressbalance">addressbalance</a> - shows received BTC minus sent BTC for an address. <i>Do not use this unless you know what you are doing: it does not do what you might expect.</i></li>
+<li><a href="$p/addressfirstseen">addressfirstseen</a> - shows the time at which an address was first seen on the network.</li>
+<li><a href="$p/nethash">nethash</a> - produces CSV statistics about block difficulty. The parameter sets the interval between data points.</li>
+<li><a href="$p/mytransactions">mytransactions</a> - dumps all transactions for given addresses</li>
+<li><a href="$p/reorglog">reorglog</a> - a log of reorg events</li>
 </ul>
 
 <h4>Tools</h4>
 <ul>
-<li><a href="/q/addresstohash">addresstohash</a> - converts a Bitcoin address to a hash160.</li>
-<li><a href="/q/hashtoaddress">hashtoaddress</a> - converts a hash160 to a Bitcoin address.</li>
-<li><a href="/q/checkaddress">checkaddress</a> - checks a Bitcoin address for validity.</li>
-<li><a href="/q/hashpubkey">hashpubkey</a> - creates a hash160 from a public key.</li>
-<li><a href="/q/changeparams">changeparams</a> - calculates the end total number of bitcoins with different starting parameters.</li>
+<li><a href="$p/addresstohash">addresstohash</a> - converts a Bitcoin address to a hash160.</li>
+<li><a href="$p/hashtoaddress">hashtoaddress</a> - converts a hash160 to a Bitcoin address.</li>
+<li><a href="$p/checkaddress">checkaddress</a> - checks a Bitcoin address for validity.</li>
+<li><a href="$p/hashpubkey">hashpubkey</a> - creates a hash160 from a public key.</li>
+<li><a href="$p/changeparams">changeparams</a> - calculates the end total number of bitcoins with different starting parameters.</li>
 </ul>
 
 <p>This server is up more than 99% of the time, but anything that pulls data from here should still be prepared for failure.</p>
 </body>
 </html>
-';
+EOD;
+
         die();
     } else {
         header("Content-type: text/plain");
