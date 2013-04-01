@@ -1,6 +1,6 @@
 <?php
 
-include_once 'includes/bootstrap.inc';
+include_once 'includes/config.inc';
 include_once 'includes/http.inc';
 
 function _unknownerror($errno,$errstr,$errfile,$errline) {

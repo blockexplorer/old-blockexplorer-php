@@ -1,16 +1,28 @@
 <?php
-function rpcQuery ($method,$params=array(),$timeout=array("send"=>0,"receive"=>10))
+
+global $_RPC_CONF;
+$_RPC_CONF = NULL;
+
+function rpcInit($conf) {
+    global $_RPC_CONF;
+    $_RPC_CONF = $conf;
+}
+
+function rpcQuery ($method, $params=array(),$timeout=array("send"=>0,"receive"=>10))
 {
-    global $RPC;
-    $conf = $RPC;
+	/* returns an associative array
 
-	//returns an associative array
-	//$reult["r"] contains the result in *decoded* JSON
-	//$result["e"] contains the error, or NULL if there is no error. This could be Bitcoin errors or rpcQuery errors.
+	   $reult["r"] contains the result in *decoded* JSON
+	   $result["e"] contains the error, or NULL if there is no error. This could be Bitcoin errors or rpcQuery errors.
 
-	//I don't expect all possible errors to be caught. After running this, you should check that it's
-	//returning reasonable data.
-	//$time_start=microtime(true);
+	   I don't expect all possible errors to be caught. After running this, you should check that it's
+	   returning reasonable data.
+	   $time_start=microtime(true); */
+
+    global $_RPC_CONF;
+    if (!$_RPC_CONF)
+        throw Exception("rpc not initialized");
+    $conf = $_RPC_CONF;
 	
 	$id=8284; //pick any random number
 
