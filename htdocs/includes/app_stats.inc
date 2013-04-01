@@ -97,6 +97,49 @@ function getlastretarget()
 	return ($blockcount-($blockcount%2016))-1;
 }
 
+function json_indent($json) {
+
+    $result    = '';
+    $pos       = 0;
+    $strLen    = strlen($json);
+    $indentStr = '  ';
+    $newLine   = "\n";
+
+    for($i = 0; $i <= $strLen; $i++) {
+        
+        // Grab the next character in the string
+        $char = substr($json, $i, 1);
+        
+        // If this character is the end of an element, 
+        // output a new line and indent the next line
+        if($char == '}' || $char == ']') {
+            $result .= $newLine;
+            $pos --;
+            for ($j=0; $j<$pos; $j++) {
+                $result .= $indentStr;
+            }
+        }
+        
+        // Add the character to the result string
+        $result .= $char;
+
+        // If the last character was the beginning of an element, 
+        // output a new line and indent the next line
+        if ($char == ',' || $char == '{' || $char == '[') {
+            $result .= $newLine;
+            if ($char == '{' || $char == '[') {
+                $pos ++;
+            }
+            for ($j = 0; $j < $pos; $j++) {
+                $result .= $indentStr;
+            }
+        }
+    }
+	
+    return $result;
+}
+
+
 function app_stats($req) {
 
     $config = $req->testnet ? "TestnetConfig" : "Config";
@@ -1072,66 +1115,9 @@ EOF;
             $return=(array)$return;
             $return[$tx]=$rowtx;
         }
-        echo indent(json_encode($return));
-        /*
-        $maxrow=pg_num_rows($result)-1;
-        $counter=0;
-        $return=array();
-        while($counter<=$maxrow)
-        {
-            $counter++;
-            $row=pg_fetch_assoc($result,$counter);
-            
-            $tx=$row["tx"];
-            $rowtx=json_decode($row["rawtx"]);		
-            
-            if(!isset($return[$counter])) //if this is a new transaction
-            {			
-                $rowtx->block=$row["block"];
-                $rowtx->blocknumber=$row["blocknum"];
-                $rowtx->time=$row["time"];
-                
-                //create index of inputs for performance
-                $inputindex=array();
-                foreach($rowtx->in as $c=>$i)
-                {
-                    $key=$i->prev_out->hash.$i->prev_out->n;
-                    $inputindex[$key]=$c;
-                }
-            }
-            
-            //Add addresses to inputs/outputs
-            
-            
-            /*$type=$row["type"];
-            $address=hash160ToAddress($row["hash160"]);
-            if($type=="in")
-            {
-                $prev=$row["prev"];
-                $index=$row["index"];
-                $indexpos=$inputindex[$prev.$index];
-                $rowtx->in[$indexpos]->address=$address
-                /*$ainputindex=array();
-                $ainputprev=array();
-                $iindex=0;
-                foreach($rowtx->in as &$i)
-                {
-                    if($i->prev_out->hash==$prev&&$i->prev_out->n==$index)
-                    {
-                        $i->address=$address;
-                    }
-                }
-            }
-            else //if type==out
-            {
-                $index=$row["id"];
-                $rowtx->out[$counter]->address=$address;
-            }
-        }*/
-
-    }
-    else //no matching page
-    {
+        echo json_indent(json_encode($return));
+    } else {
+        // no matchin page
         senderror(404);
         echo "ERROR: invalid query";
     }
