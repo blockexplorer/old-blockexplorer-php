@@ -29,11 +29,12 @@ function _unknownerror($errno,$errstr,$errfile,$errline) {
 set_error_handler("_unknownerror",E_ALL^E_DEPRECATED^E_NOTICE);
 
 class Request {
+    public $app = "explore";
+
     public $page = "home";
     public $params = array();
 
     public $testnet = false; // testnet mode
-    public $rts = false; // real-time stats
 
     public $path = null;
     private $query = null;
@@ -114,7 +115,7 @@ class Request {
             $this->testnet = true;
         }
         if(_array_remove_item($params, "q")) {
-            $this->rts = true;
+            $this->app = "stats";
         }
 
         if(!empty($params)) {
@@ -144,14 +145,21 @@ class Request {
 $req = new Request();
 //header("Content-type: text/plain"); print_r($req); die();
 
-if($req->rts) {
-	ini_set("zlib.output_compression","Off");
-	require "includes/statx.inc";
+if($req->app == "stats") {
 
-    statx($req);
+	ini_set("zlib.output_compression","Off");
+	require "includes/app_stats.inc";
+
+    app_stats($req);
+
+} else if ($req->app == "explore") {
+
+	require "includes/app_explore.inc";
+    app_explore($req);
 
 } else {
-	require "includes/explore.php";
-    explore($req);
+
+    die("unknown app: " . $req->app);
+
 }
 ?>

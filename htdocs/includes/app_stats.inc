@@ -97,7 +97,7 @@ function getlastretarget()
 	return ($blockcount-($blockcount%2016))-1;
 }
 
-function statx($req) {
+function app_stats($req) {
 
     $config = $req->testnet ? "TestnetConfig" : "Config";
 
