@@ -152,7 +152,6 @@ function app_stats($req) {
 <li><a href="$p/addressfirstseen">addressfirstseen</a> - shows the time at which an address was first seen on the network.</li>
 <li><a href="$p/nethash">nethash</a> - produces CSV statistics about block difficulty. The parameter sets the interval between data points.</li>
 <li><a href="$p/mytransactions">mytransactions</a> - dumps all transactions for given addresses</li>
-<li><a href="$p/reorglog">reorglog</a> - a log of reorg events</li>
 </ul>
 
 <h4>Tools</h4>
