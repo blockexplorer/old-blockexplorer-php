@@ -155,7 +155,7 @@ function app_stats($req) {
         $p = $req->path;
 
         echo <<<"EOD"
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+<!DOCTYPE HTML PUBLIC "-//W3C// DTD HTML 4.01// EN"
 "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
@@ -215,7 +215,7 @@ EOD;
     } else {
         header("Content-type: text/plain");
     }
-    //start main block - anything before this must die()
+    // start main block - anything before this must die()
     if($req->page == "getdifficulty")
     {
         echo getdifficulty();
@@ -278,10 +278,10 @@ EOD;
     }
     else if($req->page == "estimate")
     {
-        $currentcount = getblockcount(); //last one with the old difficulty
-        $last = getlastretarget()+1; //first one with the "new" difficulty
+        $currentcount = getblockcount(); // last one with the old difficulty
+        $last = getlastretarget()+1; // first one with the "new" difficulty
         $targettime = 600*($currentcount-$last+1);
-        //check for cases where we're comparing the same two blocks
+        // check for cases where we're comparing the same two blocks
         if($targettime == 0)
         {
             echo getdifficulty();
@@ -306,7 +306,7 @@ EOD;
         }
         
         $newtarget = bcmul($oldtarget, $actualtime);
-        //check once more for safety
+        // check once more for safety
         if($newtarget == "0")
         {
             echo getdifficulty();
@@ -314,7 +314,7 @@ EOD;
         }
         $newtarget = bcdiv($newtarget, $targettime, 0);
         $newtarget = decodeCompact(encodeCompact($newtarget));
-        //we now have the real new target
+        // we now have the real new target
         echo bcdiv("26959535291011309493156476344723991336010898738574164086137773096960", $newtarget, 8);
     }
     else if($req->page == "totalbc" || $req->page == "bcperblock")
@@ -332,13 +332,13 @@ EOD;
             $blockcount = getblockcount();
         }
         $blockworth = "50";
-        //for genesis block
+        // for genesis block
         $totalbc = "50";
         bcscale(8);
-        //$blockcount++; //genesis block
-        while(bccomp($blockcount, "0") == 1) //while blockcount is larger than 0
+        // $blockcount++; // genesis block
+        while(bccomp($blockcount, "0") == 1) // while blockcount is larger than 0
         {
-            if(bccomp($blockcount, "210000") == -1) //if blockcount is less than 210000
+            if(bccomp($blockcount, "210000") == -1) // if blockcount is less than 210000
             {
                 $totalbc = (string)bcadd($totalbc, bcmul($blockworth, $blockcount));
                 $blockcount = "0";
@@ -406,9 +406,9 @@ EOD;
         }
         $totalbc = "0";
         bcscale($precision);
-        while(bccomp($blockcount, "0") == 1 && $blockworth != "0") //while blockcount is larger than 0
+        while(bccomp($blockcount, "0") == 1 && $blockworth != "0") // while blockcount is larger than 0
         {
-            if(bccomp($blockcount, $interval) == -1) //if blockcount is less than 210000
+            if(bccomp($blockcount, $interval) == -1) // if blockcount is less than 210000
             {
                 $totalbc = (string)bcadd($totalbc, bcmul($blockworth, $blockcount));
                 $blockcount = "0";
@@ -642,7 +642,7 @@ always seem to start with 04 (this must be included).
     {
         if(!isset($req->params[0]))
         {
-            //default lookback
+            // default lookback
             $req->params[0] = 1000;
         }
         $req->params[0] = (int)$req->params[0];
@@ -672,7 +672,7 @@ always seem to start with 04 (this must be included).
     {
         if(!isset($req->params[0]))
         {
-            //default lookback
+            // default lookback
             $req->params[0] = 1000;
         }
         $req->params[0] = (int)$req->params[0];
@@ -698,7 +698,7 @@ always seem to start with 04 (this must be included).
     {
         if(!isset($req->params[0]))
         {
-            //default lookback
+            // default lookback
             $req->params[0] = 1000;
         }
         $req->params[0] = (int)$req->params[0];
@@ -735,7 +735,7 @@ always seem to start with 04 (this must be included).
                 echo "ERROR: you must use an integer above 0 for minconf";
                 die();
             }
-            if($req->params[1] == 0) //I don't think this can happen currently
+            if($req->params[1] == 0) // I don't think this can happen currently
             {
                 senderror(400); 
                 echo "ERROR: this page never counts 0-confirmation transactions";
@@ -903,7 +903,7 @@ this time, calculated from the average interval and average target.\n";
                 die();
             }
             
-            //average targets to get accurate estimates
+            // average targets to get accurate estimates
             if(isset($prevtarget))
             {
                 $avgtarget = bcdiv(bcadd($target, $prevtarget), "2", 0);
@@ -945,7 +945,7 @@ this time, calculated from the average interval and average target.\n";
     }
     else if ($req->page == "mytransactions")
     {
-        //This RELIES on the fact that only address transactions will be sent/received
+        // This RELIES on the fact that only address transactions will be sent/received
         ini_set("zlib.output_compression", "On");
         
         function cache($etag)
@@ -1036,7 +1036,7 @@ must also be considered to be an error.
         {
             $blocklimit = 0;
         }
-        //gather addresses
+        // gather addresses
         $addresses = explode('.', trim($req->params[0]));
         foreach($addresses as &$address)
         {
@@ -1048,7 +1048,7 @@ must also be considered to be an error.
             }
             $address = "decode('".addressToHash160($address)."', 'hex')";
         }
-        //this is safe because addresses were checked above
+        // this is safe because addresses were checked above
         $addresses = implode(", ", $addresses);
         $sql = <<<EOF
 SELECT encode(blocks.hash, 'hex') AS block, encode(transactions.hash, 'hex') AS tx, blocks.number AS blocknum, blocks.time AT TIME ZONE 'UTC' AS time, transactions.id AS tid, transactions.raw AS rawtx
@@ -1072,19 +1072,19 @@ EOF;
             $time = $row["time"];
             $tx = $row["tx"];
             
-            //caching
+            // caching
             $counter++;
             if($counter == $maxrow)
             {
                 cache($block);
             }
             
-            //add additional info
+            // add additional info
             $rowtx->block = $row["block"];
             $rowtx->blocknumber = $row["blocknum"];
             $rowtx->time = $row["time"];
             
-            //add addresses
+            // add addresses
             foreach($rowtx->in as &$i)
             {
                 if(isset($i->scriptSig))

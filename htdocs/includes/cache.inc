@@ -58,7 +58,7 @@ function cacheget($key)
         return false; // we'll put new stuff in it later
     }
     
-    fgets($file); //advance pointer
+    fgets($file); // advance pointer
     $data = fread($file, $length);
     if(!empty($data) && strlen($data) == $length && crc32($data) == $chk) {
         return $data;

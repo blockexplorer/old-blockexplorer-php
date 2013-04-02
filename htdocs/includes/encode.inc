@@ -43,7 +43,7 @@ function decodeBase58($base58)
 	
 	$return = encodeHex($return);
 	
-	//leading zeros
+	// leading zeros
 	for($i = 0;$i<strlen($origbase58) && $origbase58[$i] == "1";$i++)
 	{
 		$return = "00".$return;
@@ -77,7 +77,7 @@ function encodeBase58($hex)
 	}
 	$return = strrev($return);
 	
-	//leading zeros
+	// leading zeros
 	for($i = 0;$i<strlen($orighex) && substr($orighex, $i, 2) == "00";$i += 2)
 	{
 		$return = "1".$return;

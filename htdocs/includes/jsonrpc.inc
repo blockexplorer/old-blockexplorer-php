@@ -24,9 +24,9 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
         throw Exception("rpc not initialized");
     $conf = $_RPC_CONF;
 	
-	$id = 8284; //pick any random number
+	$id = 8284; // pick any random number
 
-	//construct query
+	// construct query
 	$query = (object)array("method" => $method, "params" => $params, "id" => $id);
 	$query = json_encode($query);
 	$auth = base64_encode($conf['user'].":".$conf['password']);
@@ -44,10 +44,10 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
 	$offset = 0;
 	$len = strlen($in);
 	
-	//create connection
+	// create connection
 	$socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
 	
-	//timeouts
+	// timeouts
 	if($timeout["send"]>0)
 	{
 		socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, array("sec" => $timeout["send"], "usec" => 0));
@@ -65,7 +65,7 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
 		goto returnResult;
 	}
 	
-	//write loop for unreliable network
+	// write loop for unreliable network
 	while ($offset < $len)
 	{
 		$sent = socket_write($socket, substr($in, $offset), $len-$offset);
@@ -74,13 +74,13 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
 		}
 		$offset += $sent;
 	}
-	//did all of our data get out?
+	// did all of our data get out?
 	if ($offset < $len) 
 	{
 		$errorcode = socket_last_error();
 		error_log("JSON: Socket error $errorcode: ".__LINE__);
 		
-		//poorly-named timeout error
+		// poorly-named timeout error
 		if($errorcode == 11)
 		{
 			$error = "Socket write timed out";
@@ -91,10 +91,10 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
 		}
 		goto returnResult;
 	}
-	//read loop for unreliable network
-	//Not totally sure this is always safe (I suppose socket_read might return an empty string if not
-	//at the end), though I've run it hundreds of thousands of times without error. returnResult
-	//will catch it if it ever fails, and the client should retry at least once.
+	// read loop for unreliable network
+	// Not totally sure this is always safe (I suppose socket_read might return an empty string if not
+	// at the end), though I've run it hundreds of thousands of times without error. returnResult
+	// will catch it if it ever fails, and the client should retry at least once.
 	$reply = "";
 	do
 	{
@@ -105,7 +105,7 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
 			$errorcode = socket_last_error();
 			error_log("JSON: Socket error $errorcode: ".__LINE__);
 			
-			//poorly-named timeout error
+			// poorly-named timeout error
 			if($errorcode == 11)
 			{
 				$error = "Socket read timed out";
@@ -123,7 +123,7 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
 	}
 	while($recv != "");
 	
-	//socket no longer needed -- close
+	// socket no longer needed -- close
 	socket_shutdown($socket);
 	socket_close($socket);
 	
@@ -134,7 +134,7 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
 	}
 	$result = trim(substr($reply, $result+4));
 	
-	//construct final array
+	// construct final array
 	returnResult:
 	{
 		$return = array("r" => NULL, "e" => NULL);
