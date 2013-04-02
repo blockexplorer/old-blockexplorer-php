@@ -3,7 +3,7 @@
 global $_DB;
 $_DB = NULL;
 
-function dbinit($dbname, $connect_timeout = 2)
+function db_init($dbname, $connect_timeout = 2)
 {
     global $_DB;
 
@@ -19,7 +19,7 @@ function dbinit($dbname, $connect_timeout = 2)
     $_DB = $db;
 }
 
-function dbquery($query, $params = false)
+function db_query($query, $params = false)
 {
     global $_DB;
     if(!$_DB) 
@@ -39,4 +39,14 @@ function dbquery($query, $params = false)
 	return $retval;
 }
 
+function db_prepare($name, $query)
+{
+    global $_DB;
+    if(!$_DB) 
+        throw Exception("database not initialized");
+
+    db_prepare($_DB, $name, $query);
+}
 ?>
+
+
