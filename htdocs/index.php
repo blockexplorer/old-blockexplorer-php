@@ -36,6 +36,7 @@ class Request {
 
     public $testnet = false; // testnet mode
 
+    public $scheme = null;
     public $path = null;
     private $query = null;
 
@@ -92,6 +93,8 @@ class Request {
     }
 
     function __construct() {
+        $this->scheme = isset($_SERVER['HTTPS']) ? "https://" : "http://";
+
         $this->parse_uri();
         $this->fix_url();
 
@@ -145,6 +148,7 @@ class Request {
 $req = new Request();
 //header("Content-type: text/plain"); print_r($req); die();
 
+
 if($req->app == "stats") {
 
 	ini_set("zlib.output_compression","Off");
@@ -162,4 +166,3 @@ if($req->app == "stats") {
     die("unknown app: " . $req->app);
 
 }
-?>
