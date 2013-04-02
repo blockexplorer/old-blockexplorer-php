@@ -8,7 +8,7 @@ function rpcInit($conf) {
     $_RPC_CONF = $conf;
 }
 
-function rpcQuery ($method, $params=array(),$timeout=array("send"=>0,"receive"=>10))
+function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "receive" => 10))
 {
 	/* returns an associative array
 
@@ -17,47 +17,47 @@ function rpcQuery ($method, $params=array(),$timeout=array("send"=>0,"receive"=>
 
 	   I don't expect all possible errors to be caught. After running this, you should check that it's
 	   returning reasonable data.
-	   $time_start=microtime(true); */
+	   $time_start = microtime(true); */
 
     global $_RPC_CONF;
-    if (!$_RPC_CONF)
+    if ( ! $_RPC_CONF)
         throw Exception("rpc not initialized");
     $conf = $_RPC_CONF;
 	
-	$id=8284; //pick any random number
+	$id = 8284; //pick any random number
 
 	//construct query
-	$query=(object)array("method"=>$method,"params"=>$params,"id"=>$id);
-	$query=json_encode($query);
-	$auth=base64_encode($conf['user'].":".$conf['password']);
-	$query=$query."\r\n";
-	$length=strlen($query);
+	$query = (object)array("method" => $method, "params" => $params, "id" => $id);
+	$query = json_encode($query);
+	$auth = base64_encode($conf['user'].":".$conf['password']);
+	$query = $query."\r\n";
+	$length = strlen($query);
 
-	$in="POST / HTTP/1.1\r\n";
-	$in.="Connection: close\r\n";
-	$in.="Content-Length: $length\r\n";
-	$in.="Host: \r\n";
-	$in.="Content-type: text/plain\r\n";
-	$in.="Authorization: Basic $auth\r\n";
-	$in.="\r\n";
-	$in.=$query;
+	$in = "POST / HTTP/1.1\r\n";
+	$in .= "Connection: close\r\n";
+	$in .= "Content-Length: $length\r\n";
+	$in .= "Host: \r\n";
+	$in .= "Content-type: text/plain\r\n";
+	$in .= "Authorization: Basic $auth\r\n";
+	$in .= "\r\n";
+	$in .= $query;
 	$offset = 0;
-	$len=strlen($in);
+	$len = strlen($in);
 	
 	//create connection
-	$socket=socket_create(AF_INET,SOCK_STREAM,SOL_TCP);
+	$socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
 	
 	//timeouts
 	if($timeout["send"]>0)
 	{
-		socket_set_option($socket,SOL_SOCKET, SO_SNDTIMEO, array("sec"=>$timeout["send"],"usec"=>0));
+		socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, array("sec" => $timeout["send"], "usec" => 0));
 	}
 	if($timeout["receive"]>0)
 	{
-		socket_set_option($socket,SOL_SOCKET, SO_RCVTIMEO, array("sec"=>$timeout["send"],"usec"=>0));
+		socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, array("sec" => $timeout["send"], "usec" => 0));
 	}
 	
-	if(socket_connect($socket,$conf['target'],$conf['port'])===false)
+	if(socket_connect($socket, $conf['target'], $conf['port']) === false)
 	{
 		$errorcode = socket_last_error();
 		error_log("JSON: Socket error $errorcode: ".__LINE__);
@@ -81,9 +81,9 @@ function rpcQuery ($method, $params=array(),$timeout=array("send"=>0,"receive"=>
 		error_log("JSON: Socket error $errorcode: ".__LINE__);
 		
 		//poorly-named timeout error
-		if($errorcode==11)
+		if($errorcode == 11)
 		{
-			$error="Socket write timed out";
+			$error = "Socket write timed out";
 		}
 		else
 		{
@@ -100,15 +100,15 @@ function rpcQuery ($method, $params=array(),$timeout=array("send"=>0,"receive"=>
 	{
 		$recv = "";
 		$recv = socket_read($socket, '1400');
-		if($recv===false)
+		if($recv === false)
 		{
 			$errorcode = socket_last_error();
 			error_log("JSON: Socket error $errorcode: ".__LINE__);
 			
 			//poorly-named timeout error
-			if($errorcode==11)
+			if($errorcode == 11)
 			{
-				$error="Socket read timed out";
+				$error = "Socket read timed out";
 			}
 			else
 			{
@@ -127,35 +127,35 @@ function rpcQuery ($method, $params=array(),$timeout=array("send"=>0,"receive"=>
 	socket_shutdown($socket);
 	socket_close($socket);
 	
-	$result=strpos($reply,"\r\n\r\n");
-	if($result===false)
+	$result = strpos($reply, "\r\n\r\n");
+	if($result === false)
 	{
-		$error="Could not parse result.";
+		$error = "Could not parse result.";
 	}
-	$result=trim(substr($reply,$result+4));
+	$result = trim(substr($reply, $result+4));
 	
 	//construct final array
 	returnResult:
 	{
-		$return=array("r"=>NULL,"e"=>NULL);
+		$return = array("r" => NULL, "e" => NULL);
 		if(isset($error))
 		{
-			$return["e"]=$error;
+			$return["e"] = $error;
 			return $return;
 		}
-		$result=json_decode($result,false,512);
-		if($result==NULL||!is_object($result))
+		$result = json_decode($result, false, 512);
+		if($result == NULL || ! is_object($result))
 		{
-			$return["e"]="Decode failed.";
+			$return["e"] = "Decode failed.";
 			return $return;
 		}
-		if($result->id!=$id)
+		if($result->id != $id)
 		{
-			$return["e"]="Wrong ID.";
+			$return["e"] = "Wrong ID.";
 			return $return;
 		}
-		$return["r"]=$result->result;
-		$return["e"]=$result->error;
+		$return["r"] = $result->result;
+		$return["e"] = $result->error;
 		
 		return $return;
 	}

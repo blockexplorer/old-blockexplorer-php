@@ -3,11 +3,11 @@
 global $_DB;
 $_DB = NULL;
 
-function dbinit($dbname, $connect_timeout=2)
+function dbinit($dbname, $connect_timeout = 2)
 {
     global $_DB;
 
-	$db=@pg_pconnect("dbname=$dbname connect_timeout=$connect_timeout");
+	$db = @pg_pconnect("dbname = $dbname connect_timeout = $connect_timeout");
 
 	if(!$db) {
 		senderror(503);
@@ -19,16 +19,16 @@ function dbinit($dbname, $connect_timeout=2)
     $_DB = $db;
 }
 
-function dbquery($query,$params=false)
+function dbquery($query, $params = false)
 {
     global $_DB;
     if(!$_DB) 
         throw Exception("database not initialized");
 
-	if($params!==false) {
-		$retval=pg_query_params($_DB, $query, $params);
+	if($params !== false) {
+		$retval = pg_query_params($_DB, $query, $params);
 	} else {
-		$retval=pg_query($_DB, $query);
+		$retval = pg_query($_DB, $query);
 	}
 	if(!$retval) {
 		senderror(500);
