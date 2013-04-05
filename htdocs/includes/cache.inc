@@ -69,5 +69,3 @@ function cacheget($key)
         return false;
     }
 }
-
-?>

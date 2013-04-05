@@ -141,5 +141,3 @@ function remove0x($string)
 	}
 	return $string;
 }
-
-?>
