@@ -131,10 +131,10 @@ class Request {
 
             $this->page = "sitemap";
 
-        } else if(preg_match("/^sitemap.+\.xml$/", $page)) {
+        } else if(preg_match("/^sitemap.+\.xml$/", $this->page)) {
 
             $matches=array();
-            preg_match("/^sitemap-([tab])-([0-9]+)\.xml$/", $page, $matches);
+            preg_match("/^sitemap-([tab])-([0-9]+)\.xml$/", $this->page, $matches);
 
             if(isset($matches[1])&&isset($matches[2]))
             {
