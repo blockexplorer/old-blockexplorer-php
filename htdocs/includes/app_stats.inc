@@ -2,7 +2,7 @@
 
 require_once 'encode.inc';
 require_once 'jsonrpc.inc';
-require_once 'database.inc';
+require_once 'db.inc';
 require_once 'cache.inc';
 
 function decodeCompact($c)
@@ -146,6 +146,7 @@ function app_stats($req) {
 
     rpcInit($config::$rpc);
     db_init($config::$dbname);
+
 
     if($req->page != "mytransactions") {
         header("Cache-control: no-cache");
