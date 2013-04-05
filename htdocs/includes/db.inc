@@ -33,7 +33,7 @@ function db_query($query, $params = false)
 	if(!$retval) {
 		senderror(500);
 		echo "ERROR: Database problem. Try again in a few minutes";
-		error_log("Invalid pg_query");
+		error_log("Failed pg_query");
 		die();
 	}
 	return $retval;
@@ -45,8 +45,22 @@ function db_prepare($name, $query)
     if(!$_DB) 
         throw Exception("database not initialized");
 
-    db_prepare($_DB, $name, $query);
+    pg_prepare($_DB, $name, $query);
 }
-?>
 
+function db_execute($name, $params)
+{
+    global $_DB;
+    if(!$_DB) 
+        throw Exception("database not initialized");
 
+    $retval = pg_execute($_DB, $name, $params);
+
+	if(!$retval) {
+		senderror(500);
+		echo "ERROR: Database problem. Try again in a few minutes";
+		error_log("Failed pg_execute");
+		die();
+	}
+	return $retval;
+}
