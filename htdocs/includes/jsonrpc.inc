@@ -160,5 +160,3 @@ function rpcQuery ($method, $params = array(), $timeout = array("send" => 0, "re
 		return $return;
 	}
 }
-
-?>
