@@ -3,31 +3,6 @@
 include_once 'includes/config.inc';
 include_once 'includes/http.inc';
 
-function _unknownerror($errno,$errstr,$errfile,$errline) {
-	//suppressed errors
-	if(error_reporting()==0)
-		return;
-	
-    header("Content-type: text/html");
-
-	//clear all buffers
-	for($i=ob_get_level();$i>0;$i--)
-	{
-		ob_end_clean();
-	}
-	senderror(500);
-
-    echo "<h1>Unknown error</h1>";
-    if(CONFIG_SHOW_ERRORS) {
-        echo "$errstr in $errfile on line $errline";
-    }
-
-	error_log("BBE unknown error: $errstr in $errfile on line $errline");
-	die();
-	return true;
-}
-set_error_handler("_unknownerror",E_ALL^E_DEPRECATED^E_NOTICE);
-
 class Request {
     public $app = "explore";
 

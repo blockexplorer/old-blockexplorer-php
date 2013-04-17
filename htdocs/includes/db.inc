@@ -7,7 +7,7 @@ function db_init($dbname, $connect_timeout = 2)
 {
     global $_DB;
 
-	$db = @pg_pconnect("dbname = $dbname connect_timeout = $connect_timeout");
+	$db = @pg_connect("dbname = $dbname connect_timeout = $connect_timeout");
 
 	if(!$db) {
 		senderror(503);
@@ -42,6 +42,7 @@ function db_query($query, $params = false)
 function db_prepare($name, $query)
 {
     global $_DB;
+
     if(!$_DB) 
         throw Exception("database not initialized");
 

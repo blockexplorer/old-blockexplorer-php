@@ -1,7 +1,6 @@
 <?php
 
 define("VERSION", 19);
-define("ENABLECACHE", false);
 define("CHECKPOINT", 128281);
 define("MAINTMODE", false);
 define("ADDRQUIT", true); // false will send broken HTML
@@ -62,6 +61,9 @@ function cacheput($key, $data, $secs, $etag = 0, $headerexpires = 86400)
 
 function cacheget($key)
 {
+    if(!ENABLE_CACHING)
+        return false;
+
 	$shm = "/tmp/bbe/";
 	if(!file_exists($shm))
 	{
@@ -147,6 +149,9 @@ function cacheget($key)
 
 function cache($etag = VERSION, $customcache = false, $override = false, $die = true)
 {
+    if(!ENABLE_CACHING) 
+        return true;
+
 	$etag = (string)$etag;
 	$baseetag = $etag;
 	if($etag != VERSION)
@@ -155,7 +160,7 @@ function cache($etag = VERSION, $customcache = false, $override = false, $die = 
 	}
 	$etag = "W/\"$etag\"";
 	header("ETag: $etag");
-	if(ENABLECACHE === true || $override == true)
+	if($override == true)
 	{
 		if($customcache === false)
 		{
@@ -1250,9 +1255,9 @@ EOD;
         echo "<tr><th>Transaction".help("Truncated hash of this transaction")."</th><th>Fee".help("Fee given - the difference between total input value and total output value. This goes to the generator of the block.")."</th><th>Size (kB)".help("The data size of this transaction. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte = 1000 bytes (this is how Bitcoin does it).")."</th><th>From (amount)".help("List of all addresses that appear in an input. Whoever sent this transaction owns all of these addresses.")."</th><th>To (amount)".help("A list of all addresses that have received bitcoins from this transaction")."</th></tr>\n";
         
         // prepare SQL
-        db_prepare("transactions", "SELECT encode(hash, 'hex') AS hash, abs(fee) AS fee, size FROM transactions WHERE block = decode($1, 'hex') ORDER BY id;") or die;
-        db_prepare("outputs", "SELECT outputs.value AS value, keys.address AS address FROM outputs LEFT JOIN keys ON keys.hash160 = outputs.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id;") or die;
-        db_prepare("inputs", "SELECT inputs.value AS value, keys.address AS address FROM inputs LEFT JOIN keys ON keys.hash160 = inputs.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;") or die;
+        db_prepare("transactions", "SELECT encode(hash, 'hex') AS hash, abs(fee) AS fee, size FROM transactions WHERE block = decode($1, 'hex') ORDER BY id;");
+        db_prepare("outputs", "SELECT outputs.value AS value, keys.address AS address FROM outputs LEFT JOIN keys ON keys.hash160 = outputs.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id;");
+        db_prepare("inputs", "SELECT inputs.value AS value, keys.address AS address FROM inputs LEFT JOIN keys ON keys.hash160 = inputs.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;");
         
         $coinbase = true;
         
