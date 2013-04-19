@@ -98,9 +98,8 @@ function decodeBase58($base58)
 function encodeBase58($hex)
 {
 	if(strlen($hex)%2 != 0)
-	{
-		die("encodeBase58: uneven number of hex characters");
-	}
+        $hex = "0".$hex;
+
 	$orighex = $hex;
 	
 	$chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
