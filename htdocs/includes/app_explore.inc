@@ -359,7 +359,7 @@ function app_explore($req) {
             goto headerend;
         }
         // block number
-        if(preg_match("/^[0-9]{1, 7}$/", $input) == 1)
+        if(preg_match("/^[0-9]{1,7}$/", $input) == 1)
         {
             $result = pg_fetch_assoc(db_query("SELECT encode(hash, 'hex') AS hash FROM blocks WHERE number = $1;", array($input)));
             $result = $result["hash"];
@@ -388,7 +388,7 @@ function app_explore($req) {
         // hex only from here
         $originput = $input;
         $input = strtolower(remove0x($input));
-        if(preg_match("/[0-9a-f]{4, 130}/", $input) != 1)
+        if(preg_match("/[0-9a-f]{4,130}/", $input) != 1)
         {
             goto jump;
         }
@@ -468,13 +468,13 @@ function app_explore($req) {
         // jump to exact address/hash160/pubkey pages if no results
         if(count($transactions)+count($blocks)+count($addresses) == 0)
         {
-            if(strlen($input) == 130 && preg_match("/[0-9a-f]{4, 130}/", $input))
+            if(strlen($input) == 130 && preg_match("/[0-9a-f]{4,130}/", $input))
             {
                 $input = pubKeyToAddress($input);
                 redirect("/address/$input");
                 die();
             }
-            if(strlen($input) == 40 && preg_match("/[0-9a-f]{4, 130}/", $input))
+            if(strlen($input) == 40 && preg_match("/[0-9a-f]{4,130}/", $input))
             {
                 $input = Address::hash160ToAddress($input);
                 redirect("/address/$input");
@@ -490,7 +490,7 @@ function app_explore($req) {
     // //short links
     if($req->page == "b")
     {
-        if(preg_match("/^[0-9]{1, 7}$/", $req->params[0]) == 1)
+        if(preg_match("/^[0-9]{1,7}$/", $req->params[0]) == 1)
         {
             $result = pg_fetch_assoc(db_query("SELECT encode(hash, 'hex') AS hash FROM blocks WHERE number = $1;", array($req->params[0])));
             $result = $result["hash"];
@@ -502,7 +502,7 @@ function app_explore($req) {
     }
     if($req->page == "t")
     {
-        if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7, 20}$/", $req->params[0]) == 1)
+        if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $req->params[0]) == 1)
         {
             $hash = strtolower(decodeBase58($req->params[0]));
             $hash = db_query("SELECT encode(hash, 'hex') AS hash FROM transactions WHERE encode(hash, 'hex') LIKE $1;", array($hash."%"));
@@ -531,7 +531,7 @@ function app_explore($req) {
     }
     if($req->page == "a")
     {
-        if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7, 20}$/", $req->params[0]) == 1)
+        if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $req->params[0]) == 1)
         {
             $hash = strtolower(decodeBase58($req->params[0]));
             $address = db_query("SELECT address AS address FROM keys WHERE encode(hash160, 'hex') LIKE $1;", array($hash."%")); 

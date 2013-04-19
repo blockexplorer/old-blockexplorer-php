@@ -1040,7 +1040,7 @@ must also be considered to be an error.
         $addresses = explode('.', trim($req->params[0]));
         foreach($addresses as &$address)
         {
-            if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{25, 44}$/", $address) !== 1 || ! Address::checkAddress($address))
+            if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{25,44}$/", $address) !== 1 || ! Address::checkAddress($address))
             {
                 echo "ERROR: One or more addresses are invalid";
                 senderror(400);

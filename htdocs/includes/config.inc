@@ -1,6 +1,6 @@
 <?php
 
-define('HOSTNAME', 'blockexplorer.com');
+define('HOSTNAME', 'dev.blockexplorer.com');
 define('REDIRECT_CANONICAL', false);
 define('ENABLE_CACHING', false);
 
