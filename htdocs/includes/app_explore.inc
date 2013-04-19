@@ -671,6 +671,7 @@ function app_explore($req) {
             goto headerend;
         }
         $hashtrunc = substr($hash, 0, 10)."...";
+
         $tx = pg_fetch_assoc(db_query("SELECT encode(transactions.block, 'hex') AS block, transactions.fee AS fee, transactions.size AS size, blocks.time AT TIME ZONE 'UTC' AS time, blocks.number AS blocknumber FROM transactions LEFT JOIN blocks ON transactions.block = blocks.hash WHERE transactions.hash = decode($1, 'hex');", array($hash)));
         if($tx === false || is_null($tx))
         {
@@ -716,7 +717,7 @@ function app_explore($req) {
             error("Invalid address", 400);
             goto headerend;
         }
-        $insertrss = "{$req->scheme}blockexplorer.com/rssa/$address.xml";
+        $insertrss = "{$req->scheme}".HOSTNAME."/rssa/$address.xml";
         $hash160 = strtolower(addressToHash160($address));
         $keyinfo = pg_fetch_assoc(db_query("SELECT encode(pubkey, 'hex') AS pubkey, encode(firstseen, 'hex') AS firstseen FROM keys WHERE hash160 = decode($1, 'hex');", array($hash160)));
         $pubkey = $keyinfo["pubkey"];
@@ -791,7 +792,7 @@ function app_explore($req) {
                 while($oneurl)
                 {
                     $buffer.= '<url>'."\n";
-                    $buffer.= "<loc>http://blockexplorer.com{$oneurl["url"]}</loc>"."\n";
+                    $buffer.= "<loc>http://".HOSTNAME."{$oneurl["url"]}</loc>"."\n";
                     if($req->params[0] == "a")
                     {
                         $priority = "0.7";
@@ -830,19 +831,19 @@ function app_explore($req) {
                 for($i = 0;$i <= $totaltx;$i++)
                 {
                     $buffer.= "<sitemap>"."\n";
-                    $buffer.= "<loc>http://blockexplorer.com/sitemap-t-$i.xml</loc>"."\n";
+                    $buffer.= "<loc>http://".HOSTNAME."/sitemap-t-$i.xml</loc>"."\n";
                     $buffer.= "</sitemap>"."\n";
                 }
                 for($i = 0;$i <= $totaladdr;$i++)
                 {
                     $buffer.= "<sitemap>"."\n";
-                    $buffer.= "<loc>http://blockexplorer.com/sitemap-a-$i.xml</loc>"."\n";
+                    $buffer.= "<loc>http://".HOSTNAME."/sitemap-a-$i.xml</loc>"."\n";
                     $buffer.= "</sitemap>"."\n";
                 }
                 for($i = 0;$i <= $totalblk;$i++)
                 {
                     $buffer.= "<sitemap>"."\n";
-                    $buffer.= "<loc>http://blockexplorer.com/sitemap-b-$i.xml</loc>"."\n";
+                    $buffer.= "<loc>http://".HOSTNAME."/sitemap-b-$i.xml</loc>"."\n";
                     $buffer.= "</sitemap>"."\n";
                 }
                 $buffer.= '</sitemapindex>';
@@ -892,9 +893,9 @@ function app_explore($req) {
         echo '<rss version = "2.0" xmlns:atom = "http://www.w3.org/2005/Atom">'."\n";
         echo '<channel>'."\n";
         echo "<description>Latest received transactions for $address</description>"."\n";
-        echo "<link>{$req->scheme}blockexplorer.com/address/$address</link>"."\n";
+        echo "<link>{$req->scheme}".HOSTNAME."/address/$address</link>"."\n";
         echo "<title>BBE - $address</title>"."\n";
-        echo '<atom:link href="'."{$req->scheme}blockexplorer.com/rssa/$address.xml".'" rel = "self" type = "application/xml" />'."\n";
+        echo '<atom:link href="'."{$req->scheme}".HOSTNAME."/rssa/$address.xml".'" rel = "self" type = "application/xml" />'."\n";
         if(isset($builddate))
         {
             echo "<lastBuildDate>$builddate</lastBuildDate>"."\n";
@@ -909,10 +910,10 @@ function app_explore($req) {
             $amount = removeTrailingZeroes($onetx["value"]);
             echo "<item>\n";
             echo "<description>$address received $amount BTC at $time in block number $number.</description>\n";
-            echo "<guid>{$req->scheme}blockexplorer.com/address/$address#$anchor</guid>\n";
+            echo "<guid>{$req->scheme}".HOSTNAME."/address/$address#$anchor</guid>\n";
             echo "<pubDate>$time</pubDate>\n";
             echo "<title>Received $amount BTC</title>\n";
-            echo "<link>{$req->scheme}blockexplorer.com/address/$address#$anchor</link>"."\n";
+            echo "<link>{$req->scheme}".HOSTNAME."/address/$address#$anchor</link>"."\n";
             echo "</item>\n";
             $onetx = pg_fetch_array($query);
         }
@@ -1389,7 +1390,8 @@ EOD;
         echo "<h1>Transaction</h1>\n";
         $shortlink = encodeBase58(substr(strtoupper($hash), 0, 14));
         $shortlink = "/t/$shortlink";
-        echo "<div id = \"shortlink\">Short link: <a href=\"$shortlink\">".$req->scheme."blockexplorer.com$shortlink</a></div>";
+        echo "<div id = \"shortlink\">Short link: <a
+        href=\"$shortlink\">".$req->scheme.HOSTNAME."$shortlink</a></div>";
         echo "<ul class = \"infoList\">\n";
         
         echo "<li>Hash".help("Full hash of this transaction").": $hash</li>\n";
