@@ -143,10 +143,10 @@ function json_indent($json) {
 function app_stats($req) {
 
     $config = $req->testnet ? "TestnetConfig" : "Config";
+    Address::$version = $config::$address_version;
 
     rpcInit($config::$rpc);
     db_init($config::$dbname);
-
 
     if($req->page != "mytransactions") {
         header("Cache-control: no-cache");
@@ -455,15 +455,14 @@ EOD;
 
     else if($req->page == "hashtoaddress")
     {
+        $address_version = Address::$version;
 
-        $addressversion = ADDRESSVERSION;
         if(isset($req->params[1]))
         {
-            $addressversion = strtoupper(remove0x(trim((string)$req->params[1])));
-            if(strlen($addressversion) != 2 || preg_match('/^[0-9A-F]+$/', $addressversion) != 1)
+            $address_version = strtoupper(remove0x(trim((string)$req->params[1])));
+            if(strlen($address_version) != 2 || preg_match('/^[0-9A-F]+$/', $address_version) != 1)
             {
-                echo "ERROR: AddressVersion is a two-character hexadecimal byte. Like 1F or 03. Using default.\n";
-                $addressversion = ADDRESSVERSION;
+                echo "ERROR: address_version is a two-character hexadecimal byte. Like 1F or 03. Using default.\n";
             }
         }
         if(isset($req->params[0]))
@@ -473,7 +472,7 @@ EOD;
             {
                 if(strlen($hash160)%2 == 0)
                 {
-                    echo hash160ToAddress($hash160, $addressversion);
+                    echo Address::hash160ToAddress($hash160, $address_version);
                 }
                 else
                 {
@@ -490,7 +489,7 @@ EOD;
         }
         else
         {
-            echo "Converts a Bitcoin hash160 (in hex) to a valid BC address.\n/q/hashtoaddress/hexHash[/AddressVersion]";
+            echo "Converts a Bitcoin hash160 (in hex) to a valid BC address.\n/q/hashtoaddress/hexHash[/address_version]";
         }
     }
 
@@ -745,7 +744,7 @@ always seem to start with 04 (this must be included).
             $minconf = (int)$req->params[1];
         }
         
-        if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && checkAddress($req->params[0]))
+        if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
         {
             $hash160 = addressToHash160($req->params[0]);
             $result = pg_fetch_assoc(db_query("SELECT sum(value) AS sum FROM outputs WHERE hash160 = decode($1, 'hex') AND block NOT IN (SELECT hash FROM blocks ORDER BY number DESC LIMIT $2);", array($hash160, $minconf-1)));
@@ -775,7 +774,7 @@ always seem to start with 04 (this must be included).
             die();
         }
         
-        if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && checkAddress($req->params[0]))
+        if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
         {
             $hash160 = addressToHash160($req->params[0]);
             $result = pg_fetch_assoc(db_query("SELECT sum(value) AS sum FROM inputs WHERE hash160 = decode($1, 'hex');", array($hash160)));
@@ -806,7 +805,7 @@ always seem to start with 04 (this must be included).
             die();
         }
         
-        if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && checkAddress($req->params[0]))
+        if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
         {
             $hash160 = addressToHash160($req->params[0]);
             $sent = pg_fetch_assoc(db_query("SELECT sum(value) AS sum FROM inputs WHERE hash160 = decode($1, 'hex');", array($hash160)));
@@ -843,7 +842,7 @@ always seem to start with 04 (this must be included).
             echo "Returns the block time at which an address was first seen.\n/q/addressfirstseen/address";
             die();
         }
-        if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && checkAddress($req->params[0]))
+        if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
         {
             $result = pg_fetch_assoc(db_query("SELECT time AT TIME ZONE 'UTC' AS time FROM keys JOIN blocks ON keys.firstseen = blocks.hash WHERE address = $1;", array($req->params[0])));
             $result = $result["time"];
@@ -1041,7 +1040,7 @@ must also be considered to be an error.
         $addresses = explode('.', trim($req->params[0]));
         foreach($addresses as &$address)
         {
-            if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{25, 44}$/", $address) !== 1 || ! checkAddress($address))
+            if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{25, 44}$/", $address) !== 1 || ! Address::checkAddress($address))
             {
                 echo "ERROR: One or more addresses are invalid";
                 senderror(400);
@@ -1096,7 +1095,7 @@ EOF;
                     {
                         $pubkey = preg_replace("/^[0-9a-f]+ ([0-9a-f]{130})$/", "$1", $simplescriptsig);
                         $hash160 = strtolower(hash160($pubkey));
-                        $address = hash160ToAddress($hash160);
+                        $address = Address::hash160ToAddress($hash160);
                         $i->address = $address;
                     }
                 }
@@ -1108,7 +1107,7 @@ EOF;
                 if(preg_match("/^OP_DUP OP_HASH160 [0-9a-f]{40} OP_EQUALVERIFY OP_CHECKSIG$/", $simplescriptpk))
                 {
                     $hash160 = preg_replace("/^OP_DUP OP_HASH160 ([0-9a-f]{40}) OP_EQUALVERIFY OP_CHECKSIG$/", "$1", $simplescriptpk);
-                    $address = hash160ToAddress($hash160);
+                    $address = Address::hash160ToAddress($hash160);
                     $i->address = $address;
                 }
             }

@@ -46,7 +46,7 @@ function db_prepare($name, $query)
     if(!$_DB) 
         throw Exception("database not initialized");
 
-    pg_prepare($_DB, $name, $query);
+    @pg_prepare($_DB, $name, $query);
 }
 
 function db_execute($name, $params)

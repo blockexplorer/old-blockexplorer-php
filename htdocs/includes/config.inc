@@ -6,7 +6,8 @@ define('ENABLE_CACHING', false);
 
 class Config {
     static $dbname = "testexplore";
-    static $addressversion = "00";
+    //static $address_version = "00";
+    static $address_version = "6F";
     static $rpc = array("user" => "bitcoin",
                         "password" => "7AvathEBracheCra",
                         "target" => "127.0.0.1",
@@ -15,7 +16,7 @@ class Config {
 
 class TestnetConfig {
     static $dbname = "testexplore";
-    static $addressversion = "6F";
+    static $address_version = "6F";
     static $rpc = array("user" => "bitcoin",
                         "password" => "7AvathEBracheCra",
                         "target" => "127.0.0.1",

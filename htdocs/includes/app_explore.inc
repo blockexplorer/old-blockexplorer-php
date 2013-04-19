@@ -287,6 +287,7 @@ function app_explore($req) {
     $config = $req->testnet ? "TestnetConfig" : "Config";
 
     db_init($config::$dbname);
+    Address::$version = $config::$address_version;
 
     if(MAINTMODE !== false && $_SERVER["REMOTE_ADDR"] != "192.168.1.1")
     {
@@ -475,11 +476,11 @@ function app_explore($req) {
             }
             if(strlen($input) == 40 && preg_match("/[0-9a-f]{4, 130}/", $input))
             {
-                $input = hash160ToAddress($input);
+                $input = Address::hash160ToAddress($input);
                 redirect("/address/$input");
                 die();
             }
-            if(checkAddress($originput))
+            if(Address::checkAddress($originput))
             {
                 redirect("/address/$originput");
                 die();
@@ -710,7 +711,7 @@ function app_explore($req) {
         $knownaddress = false;
         // get address
         $address = $req->params[0];
-        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) == 1 ||strlen($address)>36 || ! checkAddress($address))
+        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) == 1 ||strlen($address)>36 || ! Address::checkAddress($address))
         {
             error("Invalid address", 400);
             goto headerend;
@@ -866,7 +867,7 @@ function app_explore($req) {
     {
         header("Content-type: application/xml; charset = iso-8859-1");
         $address = substr($req->params[0], 0, strlen($req->params[0])-4);
-        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) == 1 ||strlen($address)>36 || ! checkAddress($address))
+        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) == 1 ||strlen($address)>36 || ! Address::checkAddress($address))
         {
             senderror(400);
             header("Content-type: text/plain");
@@ -1218,8 +1219,7 @@ EOD;
         
         echo "<h1>Block {$result["number"]}".help("The number is a count of the number of blocks up to this one, with the genesis block being 0.")."</h1>\n";
         $shortlink = "/b/{$result["number"]}";
-        echo "<div id = \"shortlink\">Short link: <a href =
-        \"$shortlink\">".$req->scheme."blockexplorer.com$shortlink</a></div>";
+        echo "<div id = \"shortlink\">Short link: <a href = \"$shortlink\">".$req->scheme.HOSTNAME."$shortlink</a></div>";
         echo "<ul class = \"infoList\">\n";
         echo "<li>Hash".help("Full hash of this block. Sometimes this is expressed without the leading zeroes.").": $block</li>\n";
         if($prev != "0000000000000000000000000000000000000000000000000000000000000000")
@@ -1255,8 +1255,11 @@ EOD;
         echo "<tr><th>Transaction".help("Truncated hash of this transaction")."</th><th>Fee".help("Fee given - the difference between total input value and total output value. This goes to the generator of the block.")."</th><th>Size (kB)".help("The data size of this transaction. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte = 1000 bytes (this is how Bitcoin does it).")."</th><th>From (amount)".help("List of all addresses that appear in an input. Whoever sent this transaction owns all of these addresses.")."</th><th>To (amount)".help("A list of all addresses that have received bitcoins from this transaction")."</th></tr>\n";
         
         // prepare SQL
+
         db_prepare("transactions", "SELECT encode(hash, 'hex') AS hash, abs(fee) AS fee, size FROM transactions WHERE block = decode($1, 'hex') ORDER BY id;");
+
         db_prepare("outputs", "SELECT outputs.value AS value, keys.address AS address FROM outputs LEFT JOIN keys ON keys.hash160 = outputs.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id;");
+
         db_prepare("inputs", "SELECT inputs.value AS value, keys.address AS address FROM inputs LEFT JOIN keys ON keys.hash160 = inputs.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;");
         
         $coinbase = true;
@@ -1487,6 +1490,7 @@ EOD;
         echo "<table class = \"txtable\">\n";
         echo "<tr><th>Index".help("Starts at 0 and increments for each output.")."</th><th>Redeemed at input".help("If this output has ever been spent by the recipient, the transaction that did it is listed here. (If you look at these links, you will see that I assign a number to each input. This is an internal ID unrelated to Bitcoin.)")."</th><th>Amount".help("BTC sent by this output")."</th><th>To address".help("Addresses this output was sent to")."</th><th>Type".help("The type of the output. Bitcoin only sends a few different types of transactions. 'Address' sends to an Bitcoin address. 'Pubkey' sends directly to a public key, and is used for IP transactions and generations. 'Strange' is an unusual transaction not created by the official Bitcoin client.")."</th><th>ScriptPubKey".help("This script specifies the conditions that must be met by someone attempting to redeem this output. Usually it contains a hash160 (Bitcoin address) or a public key.")."</th></tr>\n";
         // prepare query
+
         db_prepare("redeemed", "SELECT id, encode(tx, 'hex') AS tx FROM inputs WHERE prev = decode('$hash', 'hex') AND index = $1");
         // go through outputs
         while($oneoutput)
@@ -1544,8 +1548,10 @@ EOD;
         
         // loop through our transactions. This is all echoed later.
         $balance = "0";
-        db_prepare("outputcounter", "SELECT DISTINCT outputs.type AS type, outputs.value AS value, outputs.id, keys.address AS address FROM outputs LEFT JOIN keys ON outputs.hash160 = keys.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id") or die();
-        db_prepare("inputcounter", "SELECT DISTINCT inputs.value AS value, inputs.id, inputs.type AS type, keys.address AS address FROM inputs LEFT JOIN keys ON inputs.hash160 = keys.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;") or die();
+        db_prepare("outputcounter", "SELECT DISTINCT outputs.type AS type, outputs.value AS value, outputs.id, keys.address AS address FROM outputs LEFT JOIN keys ON outputs.hash160 = keys.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id"); 
+        
+        db_prepare("inputcounter", "SELECT DISTINCT inputs.value AS value, inputs.id, inputs.type AS type, keys.address AS address FROM inputs LEFT JOIN keys ON inputs.hash160 = keys.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;"); 
+        
         $echothis = "";
         $totalcredits = 0;
         $totalcredit = "0";
