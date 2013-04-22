@@ -219,6 +219,7 @@ function help($message)
 	$encodemessage = urlencode($message);
 	return "<sup><a href=\"/nojshelp/$encodemessage\"title = \"$message\" onClick = \"informHelp();return false\" class = \"help\">?</a></sup>";
 }
+
 function removeTrailingZeroes($value)
 {
 	$end = strlen($value)-1;
@@ -285,9 +286,10 @@ function app_explore($req) {
     global $title;
 
     $config = $req->testnet ? "TestnetConfig" : "Config";
-
     db_init($config::$dbname);
     Address::$version = $config::$address_version;
+
+    $rootpath = $req->testnet ? "/testnet/" : "/";
 
     if(MAINTMODE !== false && $_SERVER["REMOTE_ADDR"] != "192.168.1.1")
     {
@@ -340,13 +342,13 @@ function app_explore($req) {
         {
             if(isset($_POST['searchgo']))
                 $req->page = "searchgo";
-            redirect("/$req->page/{$_POST["q"]}");
+            redirect("{$rootpath}$req->page/{$_POST["q"]}");
         }
         $title = "Search";
         $input = $req->params[0];
         if($input === NULL)
         {
-            redirect("/");
+            redirect($rootpath);
         }
         $input = trim($input);
         $blocks = array();
@@ -365,7 +367,7 @@ function app_explore($req) {
             $result = $result["hash"];
             if(!is_null($result) && $result != false)
             {
-                redirect("/block/$result");
+                redirect("{$rootpath}block/$result");
             }
         }
         // size limits
@@ -452,17 +454,17 @@ function app_explore($req) {
             if(count($transactions) == 1)
             {
                 $goto = $transactions[0];
-                redirect("/tx/$goto");
+                redirect("{$rootpath}tx/$goto");
             }
             if(count($blocks) == 1)
             {
                 $goto = $blocks[0];
-                redirect("/block/$goto");
+                redirect("{$rootpath}block/$goto");
             }
             if(count($addresses) == 1)
             {
                 $goto = $addresses[0];
-                redirect("/address/$goto");
+                redirect("{$rootpath}address/$goto");
             }
         }
         // jump to exact address/hash160/pubkey pages if no results
@@ -471,18 +473,18 @@ function app_explore($req) {
             if(strlen($input) == 130 && preg_match("/[0-9a-f]{4,130}/", $input))
             {
                 $input = pubKeyToAddress($input);
-                redirect("/address/$input");
+                redirect("{$rootpath}address/$input");
                 die();
             }
             if(strlen($input) == 40 && preg_match("/[0-9a-f]{4,130}/", $input))
             {
                 $input = Address::hash160ToAddress($input);
-                redirect("/address/$input");
+                redirect("{$rootpath}address/$input");
                 die();
             }
             if(Address::checkAddress($originput))
             {
-                redirect("/address/$originput");
+                redirect("{$rootpath}address/$originput");
                 die();
             }
         }
@@ -496,7 +498,7 @@ function app_explore($req) {
             $result = $result["hash"];
             if(!is_null($result) && $result != false)
             {
-                redirect("/block/$result", 301);
+                redirect("{$rootpath}block/$result", 301);
             }
         }
     }
@@ -508,7 +510,7 @@ function app_explore($req) {
             $hash = pg_fetch_result(db_query("SELECT encode(hash, 'hex') AS hash FROM transactions WHERE id = $1;", array($id)), 0);
             if($hash) {
 
-                redirect("/tx/$hash", 301);
+                redirect("{$rootpath}tx/$hash", 301);
 
             } else {
 
@@ -521,7 +523,7 @@ function app_explore($req) {
                 {
                     $hash = pg_fetch_assoc($hash);
                     $hash = $hash["hash"];
-                    redirect("/tx/$hash", 301);
+                    redirect("{$rootpath}tx/$hash", 301);
                 }
                 if($num_rows>1)
                 {
@@ -532,7 +534,7 @@ function app_explore($req) {
                     while($onetx)
                     {
                         $thistx = $onetx["hash"];
-                        $error .= "<li><a href=\"/tx/$thistx\">$thistx</a></li>\n";
+                        $error .= "<li><a href=\"{$rootpath}tx/$thistx\">$thistx</a></li>\n";
                         $onetx = pg_fetch_assoc($hash);
                     }
                     $error .= "</ul>\n";
@@ -551,7 +553,7 @@ function app_explore($req) {
             {
                 $address = pg_fetch_assoc($address);
                 $address = $address["address"];
-                redirect("/address/$address", 301);
+                redirect("{$rootpath}address/$address", 301);
             }
             if($num_rows>1)
             {
@@ -562,7 +564,7 @@ function app_explore($req) {
                 while($oneaddr)
                 {
                     $thisaddr = $oneaddr["address"];
-                    $error .= "<li><a href=\"/address/$thisaddr\">$thisaddr</a></li>\n";
+                    $error .= "<li><a href=\"{$rootpath}address/$thisaddr\">$thisaddr</a></li>\n";
                     $oneaddr = pg_fetch_assoc($address);
                 }
                 $error .= "</ul>\n";
@@ -728,7 +730,7 @@ function app_explore($req) {
             error("Invalid address", 400);
             goto headerend;
         }
-        $insertrss = "{$req->scheme}".HOSTNAME."/rssa/$address.xml";
+        $insertrss = "{$req->scheme}".HOSTNAME."{$rootpath}rssa/$address.xml";
         $hash160 = strtolower(addressToHash160($address));
         $keyinfo = pg_fetch_assoc(db_query("SELECT encode(pubkey, 'hex') AS pubkey, encode(firstseen, 'hex') AS firstseen FROM keys WHERE hash160 = decode($1, 'hex');", array($hash160)));
         $pubkey = $keyinfo["pubkey"];
@@ -743,7 +745,7 @@ function app_explore($req) {
             $blockinfo = pg_fetch_assoc(db_query("SELECT number, time AT TIME ZONE 'UTC' AS time FROM blocks WHERE hash = decode($1, 'hex');", array($firstseen)));
             $blocknum = $blockinfo["number"];
             $blocktime = $blockinfo["time"];
-            $blockstring = "<a href=\"/block/$firstseen\">Block $blocknum</a> ($blocktime)";
+            $blockstring = "<a href=\"{$rootpath}block/$firstseen\">Block $blocknum</a> ($blocktime)";
         }
         else
         {
@@ -904,9 +906,9 @@ function app_explore($req) {
         echo '<rss version = "2.0" xmlns:atom = "http://www.w3.org/2005/Atom">'."\n";
         echo '<channel>'."\n";
         echo "<description>Latest received transactions for $address</description>"."\n";
-        echo "<link>{$req->scheme}".HOSTNAME."/address/$address</link>"."\n";
+        echo "<link>{$req->scheme}".HOSTNAME."${rootpath}address/$address</link>"."\n";
         echo "<title>BBE - $address</title>"."\n";
-        echo '<atom:link href="'."{$req->scheme}".HOSTNAME."/rssa/$address.xml".'" rel = "self" type = "application/xml" />'."\n";
+        echo '<atom:link href="'."{$req->scheme}".HOSTNAME."{$rootpath}rssa/$address.xml".'" rel = "self" type = "application/xml" />'."\n";
         if(isset($builddate))
         {
             echo "<lastBuildDate>$builddate</lastBuildDate>"."\n";
@@ -921,10 +923,10 @@ function app_explore($req) {
             $amount = removeTrailingZeroes($onetx["value"]);
             echo "<item>\n";
             echo "<description>$address received $amount BTC at $time in block number $number.</description>\n";
-            echo "<guid>{$req->scheme}".HOSTNAME."/address/$address#$anchor</guid>\n";
+            echo "<guid>{$req->scheme}".HOSTNAME."${rootpath}address/$address#$anchor</guid>\n";
             echo "<pubDate>$time</pubDate>\n";
             echo "<title>Received $amount BTC</title>\n";
-            echo "<link>{$req->scheme}".HOSTNAME."/address/$address#$anchor</link>"."\n";
+            echo "<link>{$req->scheme}".HOSTNAME."${rootpath}address/$address#$anchor</link>"."\n";
             echo "</item>\n";
             $onetx = pg_fetch_array($query);
         }
@@ -1047,7 +1049,7 @@ EOD;
             echo "<ul>\n";
             foreach ($transactions as $i)
             {
-                echo "<li><a href=\"/tx/$i\">$i</a></li>\n";
+                echo "<li><a href=\"{$rootpath}tx/$i\">$i</a></li>\n";
                 $donesomething = true;
             }
             echo "</ul>\n";
@@ -1058,7 +1060,7 @@ EOD;
             echo "<ul>\n";
             foreach ($addresses as $i)
             {
-                echo "<li><a href=\"/address/$i\">$i</a></li>\n";
+                echo "<li><a href=\"{$rootpath}address/$i\">$i</a></li>\n";
                 $donesomething = true;
             }
             echo "</ul>\n";
@@ -1069,7 +1071,7 @@ EOD;
             echo "<ul>\n";
             foreach ($blocks as $i)
             {
-                echo "<li><a href=\"/block/$i\">$i</a></li>\n";
+                echo "<li><a href=\"{$rootpath}block/$i\">$i</a></li>\n";
                 $donesomething = true;
             }
             echo "</ul>\n";
@@ -1094,7 +1096,7 @@ EOD;
         It uses the <a href="https://bitcointalk.org/index.php?topic = 724.0">getblock</a> patch by jgarzik, but also does a
         ton of processing to make certain tasks, such as tracking transactions, easier. Help text is included in the tooltips produced by superscript question marks: '.help("Like this").'. All times are UTC. Tell me (theymos) if you find any bugs.
         
-        <p>Some data from Bitcoin Block Explorer is available through the machine-readable <a href="/q">Real-Time Stats pages</a>.
+        <p>Some data from Bitcoin Block Explorer is available through the machine-readable <a href="{$rootpath}q">Real-Time Stats pages</a>.
         
         <p>Thanks to <a href="https://www.privateinternetaccess.com/" title = "VPN Service">Private Internet Access</a> for running a mirror of Bitcoin Block Explorer. They\'ve asked me to advertise their site: <a href="https://www.privateinternetaccess.com/" title = "VPN Service">VPN Service</a> (accepts Bitcoin ! ).</p>';
         
@@ -1126,8 +1128,8 @@ EOD;
             $size = round($oneblock["size"]/1000, 3);
             $totalbtc = removeTrailingZeroes($oneblock["sum"]);
             echo "<tr>\n";
-            echo "<td><a href=\"/block/$hash\">$number</a></td>\n";
-            echo "<td><a href=\"/block/$hash\">$hashtrunc</a></td>\n";
+            echo "<td><a href=\"{$rootpath}block/$hash\">$number</a></td>\n";
+            echo "<td><a href=\"{$rootpath}block/$hash\">$hashtrunc</a></td>\n";
             echo "<td>$time</td>\n";
             echo "<td>$total</td>\n";
             echo "<td>$totalbtc</td>\n";
@@ -1146,10 +1148,10 @@ EOD;
         while($onetx)
         {
             $txhash = $onetx["hash"];
-            $txhashtrunc = "<a href=\"/tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
+            $txhashtrunc = "<a href=\"{$rootpath}tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
             $amount = removeTrailingZeroes($onetx["totalvalue"]);
             $blockhash = $onetx["blockhash"];
-            $blockview = "<a href=\"/block/$blockhash\">".$onetx["blocknum"]."</a>";
+            $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
             $time = $onetx["time"];
             echo "<tr><td>$txhashtrunc</td><td>$amount</td><td>$blockview</td><td>$time</td></tr>";
             $onetx = pg_fetch_assoc($result);
@@ -1165,16 +1167,16 @@ EOD;
         while($onetx)
         {
             $txhash = $onetx["txhash"];
-            $txhashtrunc = "<a href=\"/tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
+            $txhashtrunc = "<a href=\"{$rootpath}tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
             $blockhash = $onetx["blockhash"];
-            $blockview = "<a href=\"/block/$blockhash\">".$onetx["blocknum"]."</a>";
+            $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
             $time = $onetx["time"];
             echo "<tr><td>$txhashtrunc</td><td>$blockview</td><td>$time</td></tr>";
             $onetx = pg_fetch_assoc($result);
         }
         echo "</table>";*/
         
-        echo '<p>Largest transactions and strange transactions have been temporarily moved <a href="/txstats">here</a>.</p>';
+        echo "<p>Largest transactions and strange transactions have been temporarily moved <a href=\"{$rootpath}txstats\">here</a>.</p>";
         
         cacheput("home", ob_get_flush(), 30, $endingcache, 0);
     }
@@ -1191,10 +1193,10 @@ EOD;
         while($onetx)
         {
             $txhash = $onetx["hash"];
-            $txhashtrunc = "<a href=\"/tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
+            $txhashtrunc = "<a href=\"{$rootpath}tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
             $amount = removeTrailingZeroes($onetx["totalvalue"]);
             $blockhash = $onetx["blockhash"];
-            $blockview = "<a href=\"/block/$blockhash\">".$onetx["blocknum"]."</a>";
+            $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
             $time = $onetx["time"];
             echo "<tr><td>$txhashtrunc</td><td>$amount</td><td>$blockview</td><td>$time</td></tr>";
             $onetx = pg_fetch_assoc($result);
@@ -1209,9 +1211,9 @@ EOD;
         while($onetx)
         {
             $txhash = $onetx["txhash"];
-            $txhashtrunc = "<a href=\"/tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
+            $txhashtrunc = "<a href=\"{$rootpath}tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
             $blockhash = $onetx["blockhash"];
-            $blockview = "<a href=\"/block/$blockhash\">".$onetx["blocknum"]."</a>";
+            $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
             $time = $onetx["time"];
             echo "<tr><td>$txhashtrunc</td><td>$blockview</td><td>$time</td></tr>";
             $onetx = pg_fetch_assoc($result);
@@ -1230,17 +1232,17 @@ EOD;
         $transactioncount = $result["count"];
         
         echo "<h1>Block {$result["number"]}".help("The number is a count of the number of blocks up to this one, with the genesis block being 0.")."</h1>\n";
-        $shortlink = "/b/{$result["number"]}";
+        $shortlink = "{$rootpath}b/{$result['number']}";
         echo "<div id = \"shortlink\">Short link: <a href = \"$shortlink\">".$req->scheme.HOSTNAME."$shortlink</a></div>";
         echo "<ul class = \"infoList\">\n";
         echo "<li>Hash".help("Full hash of this block. Sometimes this is expressed without the leading zeroes.").": $block</li>\n";
         if($prev != "0000000000000000000000000000000000000000000000000000000000000000")
         {
-            echo "<li>Previous block".help("Every block builds on another, forming a chain. This is the full hash of the previous block.").": <a href=\"/block/$prev\">$prev</a></li>\n";
+            echo "<li>Previous block".help("Every block builds on another, forming a chain. This is the full hash of the previous block.").": <a href=\"{$rootpath}block/$prev\">$prev</a></li>\n";
         }
         if($next != false && !is_null($next))
         {
-            echo "<li>Next block".help("The full hash of the block that will build onto this one. This field is not included in real blocks.").": <a href=\"/block/$next\">$next</a></li>\n";
+            echo "<li>Next block".help("The full hash of the block that will build onto this one. This field is not included in real blocks.").": <a href=\"{$rootpath}block/$next\">$next</a></li>\n";
         }
         echo "<li>Time".help("UTC time included in this block. The network's time must not be relied upon for precision, but it is generally accurate.").": {$result["time"]}</li>\n";
         echo "<li>Difficulty".help("The difficulty of producing blocks at the time this block was created. Same as Bitcoin's getdifficulty.").": $difficulty (\"Bits\"".help("This is the compact form of the 256-bit target used when generating. This is included in actual blocks. The difficulty number is derived from this.").": ".strtolower(encodeHex($result["bits"])).")</li>\n";
@@ -1259,7 +1261,7 @@ EOD;
         echo "<li>Size".help("The data size of this block. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte = 1000 bytes (this is how Bitcoin does it).").": $properbytes</li>\n";
         echo "<li>Merkle root".help("The root hash in a hash tree of all transactions.").": {$result["root"]}</li>\n";
         echo "<li>Nonce".help("When generating, Bitcoin starts this number at 1 and increments for each hash attempt.").": {$result["nonce"]}</li>\n";
-        echo "<li><a href=\"/rawblock/$block\">Raw block</a>".help("Almost the same as getblock's output.")."</li>\n";
+        echo "<li><a href=\"{$rootpath}rawblock/$block\">Raw block</a>".help("Almost the same as getblock's output.")."</li>\n";
         echo "</ul>";
         
         echo "<h3>Transactions</h3>\n";
@@ -1282,7 +1284,7 @@ EOD;
         while($row)
         {
             $hash = $row["hash"];
-            $hashtrunc = "<a href=\"/tx/$hash\">".substr($hash, 0, 10)."...</a>";
+            $hashtrunc = "<a href=\"{$rootpath}tx/$hash\">".substr($hash, 0, 10)."...</a>";
             echo "<tr><td colspan = \"5\">This transaction is an exact copy of $hashtrunc. This is usually caused by flawed custom miner code that rarely changes the keys used by generations, and is therefore likely to produce a generation transaction with the exact same data as a previous one by the same person. The network sees duplicate transactions as the same: only one can be redeemed.</td></tr>\n";
             $coinbase = false;
             $row = pg_fetch_assoc($result);
@@ -1299,7 +1301,7 @@ EOD;
         echo "<tr>\n";
             $hash = $row["hash"];
             // /// UPDATE
-            $hashtrunc = "<a href=\"/tx/$hash\">".substr($hash, 0, 10)."...</a>";
+            $hashtrunc = "<a href=\"{$rootpath}tx/$hash\">".substr($hash, 0, 10)."...</a>";
             $fee = removeTrailingZeroes($row["fee"]);
             if($coinbase == true)
             {
@@ -1324,7 +1326,7 @@ EOD;
                 }
                 else
                 {
-                    $address = "<a href=\"/address/$address\">$address</a>";
+                    $address = "<a href=\"{$rootpath}address/$address\">$address</a>";
                 }
                 
                 // parse value
@@ -1361,7 +1363,7 @@ EOD;
                 }
                 else
                 {
-                    $address = "<a href=\"/address/$address\">$address</a>";
+                    $address = "<a href=\"{$rootpath}address/$address\">$address</a>";
                 }
                 
                 // parse value
@@ -1399,14 +1401,14 @@ EOD;
     if($req->page == "tx")
     {
         echo "<h1>Transaction</h1>\n";
-        $shortlink = encodeBase58(encodeHex($tx['id']));
-        $shortlink = "/t/$shortlink";
+        $shortlink = "{$rootpath}t/" . encodeBase58(encodeHex($tx['id']));
+
         echo "<div id = \"shortlink\">Short link: <a
         href=\"$shortlink\">".$req->scheme.HOSTNAME."$shortlink</a></div>";
         echo "<ul class = \"infoList\">\n";
         
         echo "<li>Hash".help("Full hash of this transaction").": $hash</li>\n";
-        echo "<li>Appeared in <a href=\"/block/{$tx["block"]}\">block {$tx["blocknumber"]}</a> ({$tx["time"]})</li>\n";
+        echo "<li>Appeared in <a href=\"{$rootpath}block/{$tx["block"]}\">block {$tx["blocknumber"]}</a> ({$tx["time"]})</li>\n";
         echo "<li>Number of inputs".help("Total number of previous outputs this transaction redeems").": $numin (<a href=\"#inputs\">Jump to inputs</a>)</li>\n";
         echo "<li>Total BTC in".help("Total BTC redeemed from previous transactions").": $totalin</li>\n";
         echo "<li>Number of outputs: $numout (<a href=\"#outputs\">Jump to outputs</a>)</li>\n";
@@ -1423,7 +1425,7 @@ EOD;
         }
         echo "<li>Size".help("The data size of this transaction. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte = 1000 bytes (this is how Bitcoin does it).").": $properbytes</li>\n";
         echo "<li>Fee".help("The amount of BTC given to the person who generated the block this appeared in. It's the difference between total BTC in and total BTC out.").": $fee</li>\n";
-        echo "<li><a href=\"/rawtx/$hash\">Raw transaction</a>".help("Almost the same as getblock.")."</li>\n";
+        echo "<li><a href=\"{$rootpath}rawtx/$hash\">Raw transaction</a>".help("Almost the same as getblock.")."</li>\n";
         // duplicate transactions
         $duplicate = "";
         $duplicates = db_query("SELECT encode(block, 'hex') AS block FROM special WHERE tx = decode($1, 'hex')", array($hash));
@@ -1440,7 +1442,7 @@ EOD;
                 {
                     $duplicate .= " , ";
                 }
-                $duplicate .= "<a href=\"/block/$blockhash\">".substr(removeLeadingZeroes($blockhash), 0, 10)."</a>";
+                $duplicate .= "<a href=\"{$rootpath}block/$blockhash\">".substr(removeLeadingZeroes($blockhash), 0, 10)."</a>";
                 $onedup = pg_fetch_assoc($duplicates);
             }
             $duplicate .= "</li>";
@@ -1469,7 +1471,7 @@ EOD;
             $prevtrunc = substr($prev, 0, 12)."...:$previndex";
             if(!is_null($prev))
             {
-            echo "<td><a name = \"i$myid\" href=\"/tx/$prev#o$previndex\">$prevtrunc</a></td>\n";
+            echo "<td><a name = \"i$myid\" href=\"{$rootpath}tx/$prev#o$previndex\">$prevtrunc</a></td>\n";
             }
             else
             {
@@ -1487,7 +1489,7 @@ EOD;
             }
             else
             {
-                $address = "<a href=\"/address/$address\">$address</a>";
+                $address = "<a href=\"{$rootpath}address/$address\">$address</a>";
             }
             echo "<td>$address</td>\n";
             echo "<td>$type</td>\n";
@@ -1515,7 +1517,7 @@ EOD;
             {
                 $rtx = $redeemed["tx"];
                 $rid = $redeemed["id"];
-                $rtxtrunc = "<a name = \"o$index\" href=\"/tx/$rtx#i$rid\">".substr($rtx, 0, 12)."...</a>";
+                $rtxtrunc = "<a name = \"o$index\" href=\"{$rootpath}tx/$rtx#i$rid\">".substr($rtx, 0, 12)."...</a>";
             }
             else
             {
@@ -1532,7 +1534,7 @@ EOD;
             }
             else
             {
-                $address = "<a href=\"/address/$address\">$address</a>";
+                $address = "<a href=\"{$rootpath}address/$address\">$address</a>";
             }
             echo "<td>$address</td>\n";
             echo "<td>{$oneoutput["type"]}</td>\n";
@@ -1551,8 +1553,7 @@ EOD;
         echo "<h1>Address $address</h1>\n";
         if($knownaddress)
         {
-            $shortlink = encodeBase58(substr(strtoupper($hash160), 0, 14));
-            $shortlink = "/a/$shortlink";
+            $shortlink = "{$rootpath}a/" . encodeBase58(substr(strtoupper($hash160), 0, 14));
             echo "<div id = \"shortlink\">Short link: <a href=\"$shortlink\">".$req->scheme.HOSTNAME."$shortlink</a></div>";
         }
         echo "<ul class = \"infoList\">\n";
@@ -1611,12 +1612,12 @@ EOD;
             if($cord == "Received")
             {
                 $anchorname = substr($tx, 0, 16)."o$index";
-                $txtrunc = "<a name = \"$anchorname\" href=\"/tx/$tx#o$index\">".substr($tx, 0, 10)."...</a>";
+                $txtrunc = "<a name = \"$anchorname\" href=\"{$rootpath}tx/$tx#o$index\">".substr($tx, 0, 10)."...</a>";
             }
             else
             {
                 $anchorname = substr($tx, 0, 16)."i$index";
-                $txtrunc = "<a name = \"$anchorname\" href=\"/tx/$tx#i$index\">".substr($tx, 0, 10)."...</a>";
+                $txtrunc = "<a name = \"$anchorname\" href=\"{$rootpath}tx/$tx#i$index\">".substr($tx, 0, 10)."...</a>";
             }
             $echothis.= "<td>$txtrunc</td>\n";
             
@@ -1624,7 +1625,7 @@ EOD;
             $block = $onetx["block"];
             $txtime = $onetx["time"];
             $blocknum = $onetx["blocknum"];
-            $blockstring = "<a href=\"/block/$block\">Block $blocknum</a> ($txtime)";
+            $blockstring = "<a href=\"{$rootpath}block/$block\">Block $blocknum</a> ($txtime)";
             $echothis.= "<td>$blockstring</td>\n";
             
             $echothis.= "<td>$value</td>\n";
@@ -1640,7 +1641,7 @@ EOD;
                 while($thisio)
                 {
                     $address = $thisio["address"];
-                    $addressstring = "<a href=\"/address/$address\">$address</a>";
+                    $addressstring = "<a href=\"{$rootpath}address/$address\">$address</a>";
                     if(is_null($address) || $address === false || $address == "Unknown")
                     {
                         $addressstring = "Unknown";
@@ -1678,7 +1679,7 @@ EOD;
                         }
                     }
                     $address = $thisio["address"];
-                    $addressstring = "<a href=\"/address/$address\">$address</a>";
+                    $addressstring = "<a href=\"{$rootpath}address/$address\">$address</a>";
                     if(is_null($address) || $address === false || $address == "Unknown")
                     {
                         $addressstring = "Unknown";
