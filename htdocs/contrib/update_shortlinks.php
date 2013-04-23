@@ -27,10 +27,10 @@ function main() {
 
     $opts = getopt("cath");
 
-    if(isset($opts['h']))
+    if(isset($opts['h']) || (!isset($opts['a']) && !isset($opts['t'])))
         usage();
 
-    if(isset($opts['a']) && isset($opts['b'])) 
+    if(isset($opts['a']) && isset($opts['t'])) 
         fatal("can't use -a and -t together");
 
     $mode = isset($opts['t']) ? 'tx' : 'address';
