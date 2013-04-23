@@ -47,7 +47,7 @@ CREATE TABLE t_shortlinks (
 );
 
 ALTER TABLE public.t_shortlinks OWNER TO blockupdate;
-
+GRANT SELECT ON TABLE t_shortlinks TO "www-data";
 
 EOD;
                 break;
@@ -63,7 +63,7 @@ CREATE TABLE a_shortlinks (
 );
 
 ALTER TABLE public.a_shortlinks OWNER TO blockupdate;
-
+GRANT SELECT ON TABLE a_shortlinks TO "www-data";
 
 EOD;
                 break;
