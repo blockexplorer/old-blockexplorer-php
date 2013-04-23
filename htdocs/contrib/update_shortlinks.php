@@ -1,7 +1,7 @@
 #!/usr/bin/php
 <?php
 
-require 'includes/encode.inc';
+require '../includes/encode.inc';
 
 function fatal($s) {
     echo "error: $s\n";
@@ -11,6 +11,7 @@ function fatal($s) {
 function usage() {
     echo<<<"EOD"
 Syntax: {$GLOBALS['argv'][0]} [ -c ] ( -t | -a )
+Prints SQL to update/create BBE shortlinks
 
 Options:
     -t      Create tx shortlinks
