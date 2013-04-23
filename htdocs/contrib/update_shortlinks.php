@@ -36,7 +36,9 @@ function main() {
     $mode = isset($opts['t']) ? 'tx' : 'address';
 
     if(isset($opts['c'])) {
-        echo <<< 'EOD'
+        switch($mode) {
+            case "tx" :
+                echo <<< 'EOD'
 
 DROP TABLE t_shortlinks;
 CREATE TABLE t_shortlinks (
@@ -45,6 +47,14 @@ CREATE TABLE t_shortlinks (
 );
 
 ALTER TABLE public.t_shortlinks OWNER TO blockupdate;
+
+
+EOD;
+                break;
+
+            case "address":
+
+                echo <<< 'EOD'
 
 DROP TABLE a_shortlinks;
 CREATE TABLE a_shortlinks (
@@ -56,8 +66,10 @@ ALTER TABLE public.a_shortlinks OWNER TO blockupdate;
 
 
 EOD;
-
+                break;
+        }
     }
+
     $fh = fopen("php://stdin","r");
     while($line = trim(fgets($fh))) {
         $arr = explode(" ", $line);
