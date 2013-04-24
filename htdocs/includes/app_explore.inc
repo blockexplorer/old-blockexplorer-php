@@ -335,13 +335,11 @@ function app_explore($req) {
         cache($latestblock['latest']);
     }
     // /Search
-    if($req->page == "search" || $req->page == "searchgo")
-    {
+    if($req->page == "search") {
+
         // The form on / POST submits to /search/, but I want it to go to a static page (without ?q= stuff)
         if(isset($_POST["q"]))
         {
-            if(isset($_POST['searchgo']))
-                $req->page = "searchgo";
             redirect("{$rootpath}$req->page/{$_POST["q"]}");
         }
         $title = "Search";
@@ -351,23 +349,19 @@ function app_explore($req) {
             redirect($rootpath);
         }
         $input = trim($input);
-        $blocks = array();
-        $addresses = array();
-        $transactions = array();
-        // $errortext = "Incorrect search input. You can search for a Bitcoin address, a block number, a public key, a hash160, a transaction hash, or a block hash. Block numbers are expressed in decimal, and addresses are expressed in the normal base58; everything else is hexadecimal. You can also enter a 6+ character portion of any of these (except block numbers).";
         if(!preg_match("/^[0-9A-HJ-NP-Za-km-z]+$/", $input))
         {
             error("Invalid characters.", 400);
             goto headerend;
         }
+
         // block number
-        if(preg_match("/^[0-9]{1,7}$/", $input))
+        if(preg_match("/^[0-9]+$/", $input))
         {
-            $result = pg_fetch_result(db_query("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($input)), 0);
-            if(!is_null($result) && $result != false)
-            {
-                redirect("{$rootpath}block/$result");
-            }
+            $hash = pg_fetch_result(db_query("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($input)), 0);
+            if($hash) 
+                redirect("{$rootpath}block/$hash");
+
         }
         // size limits
         if(strlen($input)<6 || strlen($input)>130)
@@ -378,114 +372,40 @@ function app_explore($req) {
         // address
         if(strlen($input)<36 && !preg_match("/0/", $input))
         {
-            $result = db_query("SELECT address FROM keys WHERE address LIKE $1 LIMIT 100;", array("%".$input."%"));
-            $oneaddr = pg_fetch_assoc($result);
-            while($oneaddr)
-            {
-                array_push($addresses, $oneaddr["address"]);
-                $oneaddr = pg_fetch_assoc($result);
-            }
+            $exists = pg_fetch_result(db_query("SELECT 1 FROM keys WHERE address = $1;", array($input)), 0);
+            if($exists)
+                redirect("{$rootpath}address/$input");
         }
         // hex only from here
         $originput = $input;
         $input = strtolower(remove0x($input));
-        if(!preg_match("/[0-9a-f]{4,130}/", $input))
-        {
-            goto jump;
-        }
-        // pubkey
-        if($req->page == "search")
-        {
-            $result = db_query("SELECT address FROM keys WHERE encode(pubkey, 'hex') LIKE $1 LIMIT 100;", array("%".$input."%"));
-            $oneaddr = pg_fetch_assoc($result);
-            while($oneaddr)
-            {
-                array_push($addresses, $oneaddr["address"]);
-                $oneaddr = pg_fetch_assoc($result);
-                if($req->page == "searchgo")
-                    goto jump;
-                }
-        }
-        // new size limits
-        if(strlen($input)>64)
-        {
-            goto jump;
-        }
+
         // block hash
-        $result = db_query("SELECT encode(hash, 'hex') AS hash FROM blocks WHERE encode(hash, 'hex') LIKE $1 LIMIT 100;", array("%".$input."%"));
-        $oneblock = pg_fetch_assoc($result);
-        while($oneblock)
-        {
-            array_push($blocks, $oneblock["hash"]);
-            $oneblock = pg_fetch_assoc($result);
-            if($req->page == "searchgo")
-                goto jump;
-        }
+        $exists = pg_fetch_result(db_query("SELECT 1 FROM blocks WHERE hash = decode($1, 'hex');", array($input)), 0);
+        if($exists)
+            redirect("{$rootpath}block/$input");
+
         // tx hash
-        $result = db_query("SELECT encode(hash, 'hex') AS hash FROM transactions WHERE encode(hash, 'hex') LIKE $1 LIMIT 100;", array("%".$input."%"));
-        $onetx = pg_fetch_assoc($result);
-        while($onetx)
-        {
-            array_push($transactions, $onetx["hash"]);
-            $onetx = pg_fetch_assoc($result);
-            if($req->page == "searchgo")
-                goto jump;
-        }
-        // new size limits
-        if(strlen($input)>40)
-        {
-            goto jump;
-        }
+        $exists = pg_fetch_result(db_query("SELECT 1 FROM transactions WHERE hash = decode($1, 'hex');", array($input)), 0);
+        if($exists)
+            redirect("{$rootpath}tx/$input");
+
         // hash160
-        $result = db_query("SELECT address FROM keys WHERE encode(hash160, 'hex') LIKE $1 LIMIT 100;", array("%".$input."%"));
-        $oneaddr = pg_fetch_assoc($result);
-        while($oneaddr)
+
+        $address = pg_fetch_result(db_query("SELECT address FROM keys WHERE hash160 = decode($1, 'hex');", array($input)), 0);
+        if($address) 
+            redirect("{$rootpath}address/$address");
+
+        // unseen address/hash160
+        if(Address::checkAddress($originput))
         {
-            array_push($addresses, $oneaddr["address"]);
-            $oneaddr = pg_fetch_assoc($result);
-            if($req->page == "searchgo")
-                goto jump;
+            redirect("{$rootpath}address/$originput");
         }
-        // jump to perfect results
-        jump:
-        if(count($transactions)+count($blocks)+count($addresses) == 1)
+
+        if(strlen($input) == 40 && preg_match("/[0-9a-f]{4,130}/", $input))
         {
-            if(count($transactions) == 1)
-            {
-                $goto = $transactions[0];
-                redirect("{$rootpath}tx/$goto");
-            }
-            if(count($blocks) == 1)
-            {
-                $goto = $blocks[0];
-                redirect("{$rootpath}block/$goto");
-            }
-            if(count($addresses) == 1)
-            {
-                $goto = $addresses[0];
-                redirect("{$rootpath}address/$goto");
-            }
-        }
-        // jump to exact address/hash160/pubkey pages if no results
-        if(count($transactions)+count($blocks)+count($addresses) == 0)
-        {
-            if(strlen($input) == 130 && preg_match("/[0-9a-f]{4,130}/", $input))
-            {
-                $input = pubKeyToAddress($input);
-                redirect("{$rootpath}address/$input");
-                die();
-            }
-            if(strlen($input) == 40 && preg_match("/[0-9a-f]{4,130}/", $input))
-            {
-                $input = Address::hash160ToAddress($input);
-                redirect("{$rootpath}address/$input");
-                die();
-            }
-            if(Address::checkAddress($originput))
-            {
-                redirect("{$rootpath}address/$originput");
-                die();
-            }
+            $input = Address::hash160ToAddress($input);
+            redirect("{$rootpath}address/$input");
         }
     }
     // //short links
@@ -1059,9 +979,8 @@ EOD;
         }
         
         echo "<h3>Search</h3>\n";
-        echo '<p>You can enter all or part of a block number, address, block hash, transaction hash, hash160, or public key. Input must be at least 6 characters long. Hashes are expressed in hexadecimal.</p>'."\n";
-        echo '<p>"Go" takes you to the first result found even when your search could be ambiguous, and it doesn\'t search for public keys.</p>'."\n";
-        echo '<form action = "/search" method = "post" ><p><input type = "text" name = "q" size = "50"> <input type = "submit" name = "searchgo" value = "Go"> <input type = "submit" value = "Search"></p></form>'."\n";
+        echo '<p>You can enter a block number, address, block hash, transaction hash, hash160. Hashes are expressed in hexadecimal.</p>'."\n";
+        echo '<form action = "/search" method = "post" ><p><input type = "text" name = "q" size = "50"><input type = "submit" value = "Search"></p></form>'."\n";
         
         // /latest blocks
         echo "<h3>Latest blocks".help("Up to two minutes delay.")."</h3>\n";
