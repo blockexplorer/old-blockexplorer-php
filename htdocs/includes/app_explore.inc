@@ -363,8 +363,7 @@ function app_explore($req) {
         // block number
         if(preg_match("/^[0-9]{1,7}$/", $input))
         {
-            $result = pg_fetch_assoc(db_query("SELECT encode(hash, 'hex') AS hash FROM blocks WHERE number = $1;", array($input)));
-            $result = $result["hash"];
+            $result = pg_fetch_result(db_query("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($input)), 0);
             if(!is_null($result) && $result != false)
             {
                 redirect("{$rootpath}block/$result");
@@ -494,12 +493,10 @@ function app_explore($req) {
     {
         if(preg_match("/^[0-9]{1,7}$/", $req->params[0]))
         {
-            $result = pg_fetch_assoc(db_query("SELECT encode(hash, 'hex') AS hash FROM blocks WHERE number = $1;", array($req->params[0])));
-            $result = $result["hash"];
-            if(!is_null($result) && $result != false)
-            {
+            $result = pg_fetch_result(db_query("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($req->params[0])), 0);
+
+            if($result)
                 redirect("{$rootpath}block/$result", 301);
-            }
         }
     }
     if($req->page == "t")
@@ -534,9 +531,8 @@ function app_explore($req) {
             echo "ERROR: Not in correct format";
             die();
         }
-        $result = pg_fetch_assoc(db_query("SELECT raw FROM transactions WHERE hash = decode($1, 'hex');", array($tx)));
-        if($result == false || is_null($result))
-        {
+        $raw = pg_fetch_result(db_query("SELECT raw FROM transactions WHERE hash = decode($1, 'hex');", array($tx)), 0);
+        if(!$raw) {
             senderror(404);
             echo "ERROR: Transaction does not exist.";
             die();
@@ -544,7 +540,7 @@ function app_explore($req) {
         else
         {
         cache();
-        echo $result["raw"];
+        echo $raw;
         die();
         }
     }
@@ -552,15 +548,14 @@ function app_explore($req) {
     {
         header("Content-type: text/plain");
         $block = trim(strtolower(remove0x($req->params[0])));
-        if(preg_match("/^[0-9a-f]{64}$/", $block))
+        if(!preg_match("/^[0-9a-f]{64}$/", $block))
         {
             senderror(400);
             echo "ERROR: Not in correct format";
             die();
         }
-        $result = pg_fetch_assoc(db_query("SELECT raw FROM blocks WHERE hash = decode($1, 'hex');", array($block)));
-        if($result == false || is_null($result))
-        {
+        $raw = pg_fetch_result(db_query("SELECT raw FROM blocks WHERE hash = decode($1, 'hex');", array($block)), 0);
+        if(!$raw) {
             senderror(404);
             echo "ERROR: Block does not exist.";
             die();
@@ -568,7 +563,7 @@ function app_explore($req) {
         else
         {
         cache();
-        echo $result["raw"];
+        echo $raw;
         die();
         }
     }
@@ -598,15 +593,15 @@ function app_explore($req) {
             error("No such block", 404);
             goto headerend;
         }
-        // Don't expire blocks that are the latest
-        $next = pg_fetch_assoc(db_query("SELECT encode(hash, 'hex') AS next FROM blocks WHERE prev = decode($1, 'hex');", array($block)));
-        $next = $next["next"];
-        if($next != false && !is_null($next))
+        $next = pg_fetch_result(db_query("SELECT encode(hash, 'hex') FROM blocks WHERE prev = decode($1, 'hex');", array($block)), 0);
+
+        if($next)
         {
             cache();
         }
         else
         {
+            // Don't cache blocks that are the latest (we're waiting for the next block)
             $donotcache = true;
             cache(VERSION."o", 0);
         }
@@ -1040,16 +1035,21 @@ EOD;
 
     if($req->page == "home")
     {
-    echo '
-        <h1>Bitcoin Block Explorer</h1>
-        <p>Bitcoin Block Explorer allows you to easily view information about the
-        <a href="https://en.bitcoin.it/wiki/Blocks">blocks</a>, <a href="https://en.bitcoin.it/wiki/Address">addresses</a>, and <a href="https://en.bitcoin.it/wiki/Transactions">transactions</a> created by <a href="http://bitcoin.org">Bitcoin</a>.
-        It uses the <a href="https://bitcointalk.org/index.php?topic = 724.0">getblock</a> patch by jgarzik, but also does a
-        ton of processing to make certain tasks, such as tracking transactions, easier. Help text is included in the tooltips produced by superscript question marks: '.help("Like this").'. All times are UTC. Tell me (theymos) if you find any bugs.
-        
-        <p>Some data from Bitcoin Block Explorer is available through the machine-readable <a href="{$rootpath}q">Real-Time Stats pages</a>.
-        
-        <p>Thanks to <a href="https://www.privateinternetaccess.com/" title = "VPN Service">Private Internet Access</a> for running a mirror of Bitcoin Block Explorer. They\'ve asked me to advertise their site: <a href="https://www.privateinternetaccess.com/" title = "VPN Service">VPN Service</a> (accepts Bitcoin ! ).</p>';
+        $help = help("Like this");
+
+    echo <<<"EOD"
+
+<h1>Bitcoin Block Explorer</h1>
+<p>Bitcoin Block Explorer allows you to easily view information about the
+<a href="https://en.bitcoin.it/wiki/Blocks">blocks</a>, <a href="https://en.bitcoin.it/wiki/Address">addresses</a>, and <a href="https://en.bitcoin.it/wiki/Transactions">transactions</a> created by <a href="http://bitcoin.org">Bitcoin</a>.
+It uses the <a href="https://bitcointalk.org/index.php?topic = 724.0">getblock</a> patch by jgarzik, but also does a
+ton of processing to make certain tasks, such as tracking transactions, easier. Help text is included in the tooltips produced by superscript question marks: $help. All times are UTC. Tell me (theymos) if you find any bugs.
+
+<p>Some data from Bitcoin Block Explorer is available through the machine-readable <a href="{$rootpath}q">Real-Time Stats pages</a>.
+
+<p>Thanks to <a href="https://www.privateinternetaccess.com/" title = "VPN Service">Private Internet Access</a> for running a mirror of Bitcoin Block Explorer. They've asked me to advertise their site: <a href="https://www.privateinternetaccess.com/" title = "VPN Service">VPN Service</a> (accepts Bitcoin ! ).</p>
+
+EOD;
         
         $latestblock = pg_fetch_array(db_query("SELECT max(number) AS latest FROM blocks;"));
         $latestblock = $latestblock["latest"];
