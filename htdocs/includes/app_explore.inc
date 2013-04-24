@@ -506,69 +506,20 @@ function app_explore($req) {
     {
         if(preg_match("/^[1-9A-HJ-NP-Za-km-z]+$/", $req->params[0]))
         {
-            $id = decodeHex((decodeBase58($req->params[0])));
-            $hash = pg_fetch_result(db_query("SELECT encode(hash, 'hex') AS hash FROM transactions WHERE id = $1;", array($id)), 0);
-            if($hash) {
-
+            $shortcut = decodeBase58($req->params[0]);
+            $hash = pg_fetch_result(db_query("SELECT encode(hash, 'hex') AS hash FROM t_shortlinks WHERE shortcut = decode($1, 'hex');", array($shortcut)), 0);
+            if($hash)
                 redirect("{$rootpath}tx/$hash", 301);
-
-            } else {
-
-                // TODO: replace this later with a temporary lookup table for deprecated links (after search engines have reindexed BBE)
-
-                $hash = strtolower(decodeBase58($req->params[0]));
-                $hash = db_query("SELECT encode(hash, 'hex') AS hash FROM transactions WHERE encode(hash, 'hex') LIKE $1;", array($hash."%"));
-                $num_rows = pg_num_rows($hash);
-                if($num_rows == 1)
-                {
-                    $hash = pg_fetch_assoc($hash);
-                    $hash = $hash["hash"];
-                    redirect("{$rootpath}tx/$hash", 301);
-                }
-                if($num_rows>1)
-                {
-                    $title = "Multiple choices";
-                    $error = "<p>That ShortLink could apply to multiple pages. Maybe I need to increase the number of bytes in each address...</p>\n<ul>\n";
-                    error_log("ShortLink ambiguity: $req->params[0]");
-                    $onetx = pg_fetch_assoc($hash);
-                    while($onetx)
-                    {
-                        $thistx = $onetx["hash"];
-                        $error .= "<li><a href=\"{$rootpath}tx/$thistx\">$thistx</a></li>\n";
-                        $onetx = pg_fetch_assoc($hash);
-                    }
-                    $error .= "</ul>\n";
-                }
-            }
         }
     }
     if($req->page == "a")
     {
-        if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $req->params[0]) == 1)
+        if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $req->params[0]))
         {
-            $hash = strtolower(decodeBase58($req->params[0]));
-            $address = db_query("SELECT address AS address FROM keys WHERE encode(hash160, 'hex') LIKE $1;", array($hash."%")); 
-            $num_rows = pg_num_rows($address);
-            if($num_rows == 1)
-            {
-                $address = pg_fetch_assoc($address);
-                $address = $address["address"];
+            $shortcut = decodeBase58($req->params[0]);
+            $address = pg_fetch_result(db_query("SELECT address FROM a_shortlinks JOIN keys ON (keys.hash160 = a_shortlinks.hash160) WHERE shortcut = decode($1, 'hex');", array($shortcut)), 0);
+            if($address)
                 redirect("{$rootpath}address/$address", 301);
-            }
-            if($num_rows>1)
-            {
-                $title = "Multiple choices";
-                $error = "<p>That ShortLink could apply to multiple pages. Maybe I need to increase the number of bytes in each address...</p>\n<ul>\n";
-                error_log("ShortLink ambiguity: $req->params[0]");
-                $oneaddr = pg_fetch_assoc($address);
-                while($oneaddr)
-                {
-                    $thisaddr = $oneaddr["address"];
-                    $error .= "<li><a href=\"{$rootpath}address/$thisaddr\">$thisaddr</a></li>\n";
-                    $oneaddr = pg_fetch_assoc($address);
-                }
-                $error .= "</ul>\n";
-            }
         }
     }
 
@@ -1401,10 +1352,6 @@ EOD;
     if($req->page == "tx")
     {
         echo "<h1>Transaction</h1>\n";
-        $shortlink = "{$rootpath}t/" . encodeBase58(encodeHex($tx['id']));
-
-        echo "<div id = \"shortlink\">Short link: <a
-        href=\"$shortlink\">".$req->scheme.HOSTNAME."$shortlink</a></div>";
         echo "<ul class = \"infoList\">\n";
         
         echo "<li>Hash".help("Full hash of this transaction").": $hash</li>\n";
@@ -1551,11 +1498,6 @@ EOD;
     {
         $currentaddress = $address;
         echo "<h1>Address $address</h1>\n";
-        if($knownaddress)
-        {
-            $shortlink = "{$rootpath}a/" . encodeBase58(substr(strtoupper($hash160), 0, 14));
-            echo "<div id = \"shortlink\">Short link: <a href=\"$shortlink\">".$req->scheme.HOSTNAME."$shortlink</a></div>";
-        }
         echo "<ul class = \"infoList\">\n";
         echo "<li>First seen".help("The first block this address was used in.").": $blockstring</li>\n";
         
