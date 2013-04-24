@@ -232,7 +232,7 @@ EOD;
     }
     else if($req->page == "getblockhash")
     {
-        if(isset($req->params[0]) && preg_match('/^[0-9]{1,9}$/', $req->params[0]) == 1)
+        if(isset($req->params[0]) && preg_match('/^[0-9]{1,9}$/', $req->params[0]))
         {
             $block = (int)$req->params[0];
             if($block <= (int)getblockcount())
@@ -320,7 +320,7 @@ EOD;
     }
     else if($req->page == "totalbc" || $req->page == "bcperblock")
     {
-        if(isset($req->params[0]) && preg_match('/^[0-9]+$/', $req->params[0]) == 1)
+        if(isset($req->params[0]) && preg_match('/^[0-9]+$/', $req->params[0]))
         {
             $blockcount = (string)$req->params[0];
             if($blockcount>6929999)
@@ -437,7 +437,7 @@ EOD;
         if(isset($req->params[0]))
         {
             $address = trim($req->params[0]);
-            if(preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) == 1 &&strlen($address)<300)
+            if(preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) && strlen($address)<300)
             {
                 echo addressToHash160($address);
             }
@@ -460,7 +460,7 @@ EOD;
         if(isset($req->params[1]))
         {
             $address_version = strtoupper(remove0x(trim((string)$req->params[1])));
-            if(strlen($address_version) != 2 || preg_match('/^[0-9A-F]+$/', $address_version) != 1)
+            if(strlen($address_version) != 2 || !preg_match('/^[0-9A-F]+$/', $address_version))
             {
                 echo "ERROR: address_version is a two-character hexadecimal byte. Like 1F or 03. Using default.\n";
             }
@@ -468,7 +468,7 @@ EOD;
         if(isset($req->params[0]))
         {
             $hash160 = strtoupper(remove0x(trim($req->params[0])));
-            if(preg_match('/^[0-9A-F]+$/', $hash160) == 1 && strlen($hash160)<400)
+            if(preg_match('/^[0-9A-F]+$/', $hash160) && strlen($hash160)<400)
             {
                 if(strlen($hash160)%2 == 0)
                 {
@@ -498,7 +498,7 @@ EOD;
         if(isset($req->params[0]))
         {
             $address = trim($req->params[0]);
-            if(preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) == 1)
+            if(preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address))
             {
                 if(strlen($address)<300)
                 {
@@ -554,7 +554,7 @@ Anything else - the encoded AddressVersion (always 00 in valid addresses)
         if(isset($req->params[0]))
         {
             $pubkey = strtoupper(remove0x(trim($req->params[0])));
-            if(preg_match('/^[0-9A-F]+$/', $pubkey) == 1 && strlen($pubkey)<300)
+            if(preg_match('/^[0-9A-F]+$/', $pubkey) && strlen($pubkey)<300)
             {
                 echo hash160($pubkey);
             }
@@ -1019,7 +1019,7 @@ must also be considered to be an error.
         if(!empty($req->params[1]))
         {
             $req->params[1] = remove0x(trim(strtolower($req->params[1])));
-            if(preg_match("/[0-9a-f]{64}/", $req->params[1]) !== 1)
+            if(!preg_match("/[0-9a-f]{64}/", $req->params[1]))
             {
                 echo "ERROR: block limit is in invalid format";
                 senderror(400);
@@ -1040,7 +1040,7 @@ must also be considered to be an error.
         $addresses = explode('.', trim($req->params[0]));
         foreach($addresses as &$address)
         {
-            if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{25,44}$/", $address) !== 1 || ! Address::checkAddress($address))
+            if(!preg_match("/^[1-9A-HJ-NP-Za-km-z]{25,44}$/", $address) || ! Address::checkAddress($address))
             {
                 echo "ERROR: One or more addresses are invalid";
                 senderror(400);

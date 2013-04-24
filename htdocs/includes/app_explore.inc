@@ -355,13 +355,13 @@ function app_explore($req) {
         $addresses = array();
         $transactions = array();
         // $errortext = "Incorrect search input. You can search for a Bitcoin address, a block number, a public key, a hash160, a transaction hash, or a block hash. Block numbers are expressed in decimal, and addresses are expressed in the normal base58; everything else is hexadecimal. You can also enter a 6+ character portion of any of these (except block numbers).";
-        if(preg_match("/^[0-9A-HJ-NP-Za-km-z]+$/", $input) != 1)
+        if(!preg_match("/^[0-9A-HJ-NP-Za-km-z]+$/", $input))
         {
             error("Invalid characters.", 400);
             goto headerend;
         }
         // block number
-        if(preg_match("/^[0-9]{1,7}$/", $input) == 1)
+        if(preg_match("/^[0-9]{1,7}$/", $input))
         {
             $result = pg_fetch_assoc(db_query("SELECT encode(hash, 'hex') AS hash FROM blocks WHERE number = $1;", array($input)));
             $result = $result["hash"];
@@ -377,7 +377,7 @@ function app_explore($req) {
             goto headerend;
         }
         // address
-        if(strlen($input)<36 && preg_match("/0/", $input) != 1)
+        if(strlen($input)<36 && !preg_match("/0/", $input))
         {
             $result = db_query("SELECT address FROM keys WHERE address LIKE $1 LIMIT 100;", array("%".$input."%"));
             $oneaddr = pg_fetch_assoc($result);
@@ -390,7 +390,7 @@ function app_explore($req) {
         // hex only from here
         $originput = $input;
         $input = strtolower(remove0x($input));
-        if(preg_match("/[0-9a-f]{4,130}/", $input) != 1)
+        if(!preg_match("/[0-9a-f]{4,130}/", $input))
         {
             goto jump;
         }
@@ -492,7 +492,7 @@ function app_explore($req) {
     // //short links
     if($req->page == "b")
     {
-        if(preg_match("/^[0-9]{1,7}$/", $req->params[0]) == 1)
+        if(preg_match("/^[0-9]{1,7}$/", $req->params[0]))
         {
             $result = pg_fetch_assoc(db_query("SELECT encode(hash, 'hex') AS hash FROM blocks WHERE number = $1;", array($req->params[0])));
             $result = $result["hash"];
@@ -528,7 +528,7 @@ function app_explore($req) {
     {
         header("Content-type: text/plain");
         $tx = trim(strtolower(remove0x($req->params[0])));
-        if(preg_match("/^[0-9a-f]{64}$/", $tx) != 1)
+        if(!preg_match("/^[0-9a-f]{64}$/", $tx))
         {
             senderror(400);
             echo "ERROR: Not in correct format";
@@ -552,7 +552,7 @@ function app_explore($req) {
     {
         header("Content-type: text/plain");
         $block = trim(strtolower(remove0x($req->params[0])));
-        if(preg_match("/^[0-9a-f]{64}$/", $block) != 1)
+        if(preg_match("/^[0-9a-f]{64}$/", $block))
         {
             senderror(400);
             echo "ERROR: Not in correct format";
@@ -585,7 +585,7 @@ function app_explore($req) {
         
         // Get hash
         $block = trim(strtolower(remove0x($req->params[0])));
-        if(preg_match("/^[0-9a-f]{64}$/", $block) != 1)
+        if(!preg_match("/^[0-9a-f]{64}$/", $block))
         {
             error("Not in correct format", 400);
             goto headerend;
@@ -629,7 +629,7 @@ function app_explore($req) {
         
         // get tx hash
         $hash = trim(strtolower(remove0x($req->params[0])));
-        if(preg_match("/^[0-9a-f]{64}$/", $hash) != 1)
+        if(!preg_match("/^[0-9a-f]{64}$/", $hash))
         {
             error("Not in correct format", 400);
             goto headerend;
@@ -676,7 +676,7 @@ function app_explore($req) {
         $knownaddress = false;
         // get address
         $address = $req->params[0];
-        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) == 1 ||strlen($address)>36 || ! Address::checkAddress($address))
+        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address)>36 || ! Address::checkAddress($address))
         {
             error("Invalid address", 400);
             goto headerend;
@@ -832,7 +832,7 @@ function app_explore($req) {
     {
         header("Content-type: application/xml; charset = iso-8859-1");
         $address = substr($req->params[0], 0, strlen($req->params[0])-4);
-        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) == 1 ||strlen($address)>36 || ! Address::checkAddress($address))
+        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) ||strlen($address)>36 || ! Address::checkAddress($address))
         {
             senderror(400);
             header("Content-type: text/plain");
