@@ -2,7 +2,7 @@
 
 define('HOSTNAME', 'dev.blockexplorer.com');
 define('REDIRECT_CANONICAL', false);
-define('ENABLE_CACHING', false);
+define('ENABLE_CACHING', true);
 
 class Config {
     static $dbname = "testexplore";

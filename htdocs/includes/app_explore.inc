@@ -1,6 +1,6 @@
 <?php
 
-define("VERSION", 19);
+define("APP_VERSION", 19);
 define("CHECKPOINT", 128281);
 define("MAINTMODE", false);
 define("ADDRQUIT", true); // false will send broken HTML
@@ -143,14 +143,14 @@ function cacheget($key)
 // set etag for this URI and expires headers. 
 // If browser has seen our etag, return a 304 Not modified
 
-function handle_etag($etag = VERSION, $customcache = false)
+function handle_etag($etag = APP_VERSION, $customcache = false)
 {
     if(!ENABLE_CACHING) 
         return true;
 
 	$etag = (string)$etag;
-	if($etag != VERSION)
-		$etag = $etag."-".VERSION;
+	if($etag != APP_VERSION)
+		$etag = $etag."-".APP_VERSION;
 	$etag = "W/\"$etag\"";
 
 	header("ETag: $etag");
@@ -514,7 +514,7 @@ function app_explore($req) {
         {
             // Don't cache blocks that are the latest (we're waiting for the next block)
             $donotcache = true;
-            handle_etag(VERSION."o");
+            handle_etag(APP_VERSION."o");
         }
         
         
@@ -1421,11 +1421,11 @@ EOD;
         echo "</table>\n";
         if(!isset($donotcache))
         {
-            cacheput("block".md5($req->params[0]), ob_get_flush(), 300, VERSION);
+            cacheput("block".md5($req->params[0]), ob_get_flush(), 300, APP_VERSION);
         }
         else
         {
-            cacheput("block".md5($req->params[0]), ob_get_flush(), 300, VERSION."o", 0);
+            cacheput("block".md5($req->params[0]), ob_get_flush(), 300, APP_VERSION."o", 0);
         }
     }
 
@@ -1574,7 +1574,7 @@ EOD;
         }
         echo "</table>\n";
         
-        cacheput("tx".md5($req->params[0]), ob_get_flush(), 300, VERSION);
+        cacheput("tx".md5($req->params[0]), ob_get_flush(), 300, APP_VERSION);
     }
 
     if($req->page == "address")
