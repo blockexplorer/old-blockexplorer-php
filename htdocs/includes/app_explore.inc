@@ -117,7 +117,7 @@ function cacheget($key)
 	// cache
 	if($etag != 0)
 	{
-		if(cache($etag, $headerexpires, false, false))
+		if(cache($etag, false, false))
 		{
 			flock($file, LOCK_UN);
 			fclose($file);
@@ -147,71 +147,36 @@ function cacheget($key)
 	}
 }
 
-function cache($etag = VERSION, $customcache = false, $override = false, $die = true)
+function cache($etag = VERSION, $customcache = false, $die = true)
 {
     if(!ENABLE_CACHING) 
         return true;
 
 	$etag = (string)$etag;
-	$baseetag = $etag;
 	if($etag != VERSION)
-	{
 		$etag = $etag."-".VERSION;
-	}
 	$etag = "W/\"$etag\"";
+
 	header("ETag: $etag");
-	if($override == true)
-	{
-		if($customcache === false)
-		{
-			if($baseetag == VERSION)
-			{
-				$cachetime = 86400;
-			}
-			else
-			{
-				$cachetime = -1500;
-			}
-		}
-		else
-		{
-			$cachetime = $customcache;
-		}
-		if(is_int($cachetime))
-		{
-			header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + $cachetime));
-		}
-	}
-	else
-	{
+
+	if($customcache !== false)
+        header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + $customcache));
+    else
 		header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() -1500));
-	}
 	
-	if(isset($_SERVER['HTTP_IF_NONE_MATCH']) && !is_null($_SERVER['HTTP_IF_NONE_MATCH']) && !empty($_SERVER['HTTP_IF_NONE_MATCH']))
-	{
-		$tags = stripslashes($_SERVER['HTTP_IF_NONE_MATCH']);
-		$tags = preg_split("/, /", $tags );
-		foreach($tags as $tag)
-		{
-			if($tag == $etag)
-			{
-				header($_SERVER["SERVER_PROTOCOL"]." 304 Not Modified");
-				if($die)
-				{
-					die();
-				}
-				else
-				{
-					return true;
-				}
-				
-			}
-		}
-	}
-	else
-	{
-		return false;
-	}
+    $k = "HTTP_IF_NONE_MATCH";
+    $v = isset($_SERVER[$k]) ? $_SERVER[$k] : null;
+    if(!$v) 
+        return false;
+
+    $tags = preg_split("/, /", stripslashes($v));
+    if(in_array($etag, $tags)) {
+        header($_SERVER["SERVER_PROTOCOL"]." 304 Not Modified");
+        if($die)
+            die();
+        else
+            return true;
+    }
 }
 
 function help($message)
@@ -555,7 +520,7 @@ function app_explore($req) {
         {
             // Don't cache blocks that are the latest (we're waiting for the next block)
             $donotcache = true;
-            cache(VERSION."o", 0);
+            cache(VERSION."o");
         }
         
         
@@ -874,7 +839,7 @@ function app_explore($req) {
             {
                 $expires = 600;
             }
-            cache($bufferhash, $expires, true);
+            cache($bufferhash, $expires);
             header("Content-type: text/xml");
             echo $buffer;
             die();
