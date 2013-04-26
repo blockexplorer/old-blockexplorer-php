@@ -1,24 +1,24 @@
 <?php
 
+class SQLException extends Exception {
+}
+
 class SQL {
     static $_DB = NULL;
 
     static function _query($query, $params = false)
     {
         if(!self::$_DB) 
-            throw new Exception("database not initialized");
+            throw new SQLException("database not initialized");
 
-        if($params !== false) {
+        if($params !== false)
             $retval = pg_query_params(self::$_DB, $query, $params);
-        } else {
+        else
             $retval = pg_query(self::$_DB, $query);
-        }
-        if(!$retval) {
-            senderror(500);
-            echo "ERROR: Database problem. Try again in a few minutes";
-            error_log("Failed pg_query: " . pg_last_error());
-            die();
-        }
+
+        if(!$retval)
+            throw new SQLException("pg_query: " . pg_last_error());
+
         return $retval;
     }
 
@@ -26,12 +26,9 @@ class SQL {
     static function init($dbname, $connect_timeout = 2) {
         $db = @pg_connect("dbname = $dbname connect_timeout = $connect_timeout");
 
-        if(!$db) {
-            senderror(503);
-            echo "ERROR: Couldn't connect to database '$dbname'.";
-            error_log("Database down: " . pg_last_error());
-            die();
-        }
+        if(!$db)
+            throw new SQLException("pg_connect: " . pg_last_error());
+
         pg_query("set statement_timeout to 60000;");
 
         self::$_DB = $db;
@@ -59,7 +56,7 @@ class SQL {
 
     static function seek($result, $offset) {
         if(gettype($result) != "resource")
-            throw new Exception("can only seek on a resource");
+            throw new SQLException("can only seek on a resource");
 
         return pg_result_seek($result, $offset);
     }
@@ -76,7 +73,7 @@ function SQL($arg, $params = false) {
 function SQLPrepare($name, $query)
 {
     if(!SQL::$_DB) 
-        throw new Exception("database not initialized");
+        throw new SQLException("database not initialized");
 
     pg_prepare(SQL::$_DB, $name, $query);
 }
@@ -85,16 +82,12 @@ class SQLPrepare {
     static function execute($name, $params)
     {
         if(!SQL::$_DB) 
-            throw new Exception("database not initialized");
+            throw new SQLException("database not initialized");
 
         $retval = pg_execute(SQL::$_DB, $name, $params);
 
         if(!$retval) {
-            senderror(500);
-            echo "ERROR: Database problem. Try again in a few minutes";
-            error_log("Failed pg_execute: " . pg_last_error());
-
-            die();
+            throw new SQLException("pg_execute: " . pg_last_error());
         }
         return $retval;
     }
