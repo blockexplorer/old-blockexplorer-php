@@ -10,7 +10,7 @@ $error = false;
 $title = "Error";
 
 require_once 'encode.inc';
-require_once 'db.inc';
+require_once 'sql.inc';
 
 date_default_timezone_set('UTC');
 function error($message, $status = false)
@@ -286,7 +286,7 @@ function app_explore($req) {
     global $title;
 
     $config = $req->testnet ? "TestnetConfig" : "Config";
-    db_init($config::$dbname);
+    SQL::init($config::$dbname);
     Address::$version = $config::$address_version;
 
     $rootpath = $req->testnet ? "/testnet/" : "/";
@@ -313,16 +313,17 @@ function app_explore($req) {
         $title = "Home";
         $description = "Bitcoin Block Explorer is a web tool that provides detailed information about Bitcoin blocks, addresses, and transactions.";
         $keywords = "";
-        $result = db_query("SELECT number AS number, 
-                                   encode(hash, 'hex') AS hash, 
-                                   time AT TIME ZONE 'UTC' AS time, 
-                                   transactions AS count, 
-                                   totalvalue AS sum, size 
-                                   
-                            FROM blocks 
-                            
-                            ORDER BY number DESC LIMIT 20;");
-        $oneblock = pg_fetch_assoc($result);
+        $result = SQL("SELECT number AS number, 
+                              encode(hash, 'hex') AS hash, 
+                              time AT TIME ZONE 'UTC' AS time, 
+                              transactions AS count, 
+                              totalvalue AS sum, size 
+                              
+                       FROM blocks 
+                       
+                       ORDER BY number DESC LIMIT 20;");
+
+        $oneblock = SQL::d($result);
         $endingcache = $oneblock["number"];
         cache($endingcache);
     }
@@ -339,8 +340,8 @@ function app_explore($req) {
         $title = "Transaction stats (temporary)";
         $description = "Largest transactions and strange transactions.";
         $keywords = "";
-        $latestblock = pg_fetch_array(db_query("SELECT max(number) AS latest FROM blocks;"));
-        cache($latestblock['latest']);
+        $latestblock = SQL::val("SELECT max(number) AS latest FROM blocks;");
+        cache($latestblock);
     }
     // /Search
     if($req->page == "search") {
@@ -366,7 +367,7 @@ function app_explore($req) {
         // block number
         if(preg_match("/^[0-9]+$/", $input))
         {
-            $hash = pg_fetch_result(db_query("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($input)), 0);
+            $hash = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($input));
             if($hash) 
                 redirect("{$rootpath}block/$hash");
 
@@ -380,7 +381,7 @@ function app_explore($req) {
         // address
         if(strlen($input)<36 && !preg_match("/0/", $input))
         {
-            $exists = pg_fetch_result(db_query("SELECT 1 FROM keys WHERE address = $1;", array($input)), 0);
+            $exists = SQL::s("SELECT 1 FROM keys WHERE address = $1;", array($input));
             if($exists)
                 redirect("{$rootpath}address/$input");
         }
@@ -389,17 +390,17 @@ function app_explore($req) {
         $input = strtolower(remove0x($input));
 
         // block hash
-        $exists = pg_fetch_result(db_query("SELECT 1 FROM blocks WHERE hash = decode($1, 'hex');", array($input)), 0);
+        $exists = SQL::s("SELECT 1 FROM blocks WHERE hash = decode($1, 'hex');", array($input));
         if($exists)
             redirect("{$rootpath}block/$input");
 
         // tx hash
-        $exists = pg_fetch_result(db_query("SELECT 1 FROM transactions WHERE hash = decode($1, 'hex');", array($input)), 0);
+        $exists = SQL::s("SELECT 1 FROM transactions WHERE hash = decode($1, 'hex');", array($input));
         if($exists)
             redirect("{$rootpath}tx/$input");
 
         // hash160
-        $address = pg_fetch_result(db_query("SELECT address FROM keys WHERE hash160 = decode($1, 'hex');", array($input)), 0);
+        $address = SQL::s("SELECT address FROM keys WHERE hash160 = decode($1, 'hex');", array($input));
         if($address) 
             redirect("{$rootpath}address/$address");
 
@@ -420,9 +421,7 @@ function app_explore($req) {
     {
         if(preg_match("/^[0-9]{1,7}$/", $req->params[0]))
         {
-            $result = pg_fetch_result(db_query("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", 
-                                               array($req->params[0])), 0);
-
+            $result = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($req->params[0]));
             if($result)
                 redirect("{$rootpath}block/$result", 301);
         }
@@ -432,9 +431,9 @@ function app_explore($req) {
         if(preg_match("/^[1-9A-HJ-NP-Za-km-z]+$/", $req->params[0]))
         {
             $shortcut = decodeBase58($req->params[0]);
-            $hash = pg_fetch_result(db_query("SELECT encode(hash, 'hex') AS hash 
-                                              FROM t_shortlinks 
-                                              WHERE shortcut = decode($1, 'hex');", array($shortcut)), 0);
+            $hash = SQL::s("SELECT encode(hash, 'hex') AS hash 
+                            FROM t_shortlinks 
+                            WHERE shortcut = decode($1, 'hex');", array($shortcut));
             if($hash)
                 redirect("{$rootpath}tx/$hash", 301);
         }
@@ -444,12 +443,12 @@ function app_explore($req) {
         if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $req->params[0]))
         {
             $shortcut = decodeBase58($req->params[0]);
-            $address = pg_fetch_result(db_query("SELECT address 
+            $address = SQL::s("SELECT address 
 
-                                                FROM a_shortlinks JOIN keys ON 
-                                                     (keys.hash160 = a_shortlinks.hash160) 
+                               FROM a_shortlinks JOIN keys ON 
+                                    (keys.hash160 = a_shortlinks.hash160) 
 
-                                                WHERE shortcut = decode($1, 'hex');", array($shortcut)), 0);
+                               WHERE shortcut = decode($1, 'hex');", array($shortcut));
             if($address)
                 redirect("{$rootpath}address/$address", 301);
         }
@@ -466,9 +465,9 @@ function app_explore($req) {
             echo "ERROR: Not in correct format";
             die();
         }
-        $raw = pg_fetch_result(db_query("SELECT raw 
-                                         FROM transactions 
-                                         WHERE hash = decode($1, 'hex');", array($tx)), 0);
+        $raw = SQL::s("SELECT raw 
+                       FROM transactions 
+                       WHERE hash = decode($1, 'hex');", array($tx));
         if(!$raw) {
             senderror(404);
             echo "ERROR: Transaction does not exist.";
@@ -491,9 +490,9 @@ function app_explore($req) {
             echo "ERROR: Not in correct format";
             die();
         }
-        $raw = pg_fetch_result(db_query("SELECT raw 
-                                         FROM blocks 
-                                         WHERE hash = decode($1, 'hex');", array($block)), 0);
+        $raw = SQL::s("SELECT raw 
+                       FROM blocks 
+                       WHERE hash = decode($1, 'hex');", array($block));
         if(!$raw) {
             senderror(404);
             echo "ERROR: Block does not exist.";
@@ -526,27 +525,27 @@ function app_explore($req) {
         }
         
         // Get block data
-        $result = pg_fetch_assoc(db_query("SELECT encode(prev, 'hex') AS prev, 
-                                                  number, 
-                                                  encode(root, 'hex') AS root, 
-                                                  bits, 
-                                                  nonce, 
-                                                  time AT TIME ZONE 'UTC' AS time, 
-                                                  transactions AS count, 
-                                                  totalvalue, 
-                                                  size 
+        $result = SQL::d("SELECT encode(prev, 'hex') AS prev, 
+                                        number, 
+                                        encode(root, 'hex') AS root, 
+                                        bits, 
+                                        nonce, 
+                                        time AT TIME ZONE 'UTC' AS time, 
+                                        transactions AS count, 
+                                        totalvalue, 
+                                        size 
 
-                                           FROM blocks 
+                                 FROM blocks 
 
-                                           WHERE hash = decode($1, 'hex');", array($block)));
+                                 WHERE hash = decode($1, 'hex');", array($block));
         if(!$result || is_null($result))
         {
             error("No such block", 404);
             goto headerend;
         }
-        $next = pg_fetch_result(db_query("SELECT encode(hash, 'hex') 
-                                          FROM blocks 
-                                          WHERE prev = decode($1, 'hex');", array($block)), 0);
+        $next = SQL::s("SELECT encode(hash, 'hex') 
+                        FROM blocks 
+                        WHERE prev = decode($1, 'hex');", array($block));
 
         if($next)
         {
@@ -584,69 +583,69 @@ function app_explore($req) {
         }
         $hashtrunc = substr($hash, 0, 10)."...";
 
-        $tx = pg_fetch_assoc(db_query("SELECT id, 
-                                              encode(transactions.block, 'hex') AS block, 
-                                              transactions.fee AS fee, 
-                                              transactions.size AS size, 
-                                              blocks.time AT TIME ZONE 'UTC' AS time,
-                                              blocks.number AS blocknumber 
+        $tx = SQL::d("SELECT id, 
+                             encode(transactions.block, 'hex') AS block, 
+                             transactions.fee AS fee, 
+                             transactions.size AS size, 
+                             blocks.time AT TIME ZONE 'UTC' AS time,
+                             blocks.number AS blocknumber 
 
-                                       FROM transactions LEFT JOIN blocks ON 
-                                            (transactions.block = blocks.hash)
+                      FROM transactions LEFT JOIN blocks ON 
+                           (transactions.block = blocks.hash)
 
-                                       WHERE transactions.hash = decode($1, 'hex');", 
+                      WHERE transactions.hash = decode($1, 'hex');", 
 
-                                       array($hash)));
-        if($tx === false || is_null($tx))
-        {
+                     array($hash));
+
+        if(!$tx) {
             error("No such transaction", 404);
             goto headerend;
         }
         // cache();
         // this needs to be fixed
         
-        $outputs = db_query("SELECT outputs.index AS index, 
-                                    outputs.value AS value,
-                                    sum(outputs.value) OVER () AS totalvalue,
-                                    keys.address AS address,
-                                    outputs.type AS type,
-                                    outputs.scriptpubkey AS scriptpubkey 
+        $outputs = SQL("SELECT outputs.index AS index, 
+                               outputs.value AS value,
+                               sum(outputs.value) OVER () AS totalvalue,
+                               keys.address AS address,
+                               outputs.type AS type,
+                               outputs.scriptpubkey AS scriptpubkey 
 
-                             FROM outputs LEFT JOIN keys ON 
-                                  (keys.hash160 = outputs.hash160)
+                        FROM outputs LEFT JOIN keys ON 
+                             (keys.hash160 = outputs.hash160)
 
-                             WHERE outputs.tx = decode($1, 'hex') 
+                        WHERE outputs.tx = decode($1, 'hex') 
 
-                             ORDER BY outputs.index;", 
+                        ORDER BY outputs.index;", 
 
-                            array($hash));
+                       array($hash));
 
-        $inputs = db_query("SELECT encode(inputs.prev, 'hex') AS prev, 
-                                   inputs.index AS index,
-                                   inputs.value AS value,
-                                   sum(inputs.value) OVER () AS totalvalue,
-                                   keys.address AS address,
-                                   inputs.type AS type,
-                                   inputs.scriptsig AS scriptsig,
-                                   inputs.id AS id 
+        $inputs = SQL("SELECT encode(inputs.prev, 'hex') AS prev, 
+                              inputs.index AS index,
+                              inputs.value AS value,
+                              sum(inputs.value) OVER () AS totalvalue,
+                              keys.address AS address,
+                              inputs.type AS type,
+                              inputs.scriptsig AS scriptsig,
+                              inputs.id AS id 
 
-                            FROM inputs LEFT JOIN keys ON 
-                                 (keys.hash160 = inputs.hash160)
+                       FROM inputs LEFT JOIN keys ON 
+                            (keys.hash160 = inputs.hash160)
 
-                            WHERE inputs.tx = decode($1, 'hex') 
+                       WHERE inputs.tx = decode($1, 'hex') 
 
-                            ORDER BY inputs.id;", 
+                       ORDER BY inputs.id;", 
 
-                            array($hash));
+                       array($hash));
 
-        $oneoutput = pg_fetch_assoc($outputs);
-        $oneinput = pg_fetch_assoc($inputs);
+        $oneoutput = SQL::d($outputs);
+        $oneinput = SQL::d($inputs);
         
         $totalin = thousands(removeTrailingZeroes($oneinput["totalvalue"]));
         $totalout = thousands(removeTrailingZeroes($oneoutput["totalvalue"]));
         $fee = removeTrailingZeroes($tx["fee"]);
-        $numin = pg_num_rows($inputs);
-        $numout = pg_num_rows($outputs);
+        $numin = SQL::count($inputs);
+        $numout = SQL::count($outputs);
         
         $title = "Tx $hashtrunc";
         $description = "Information about Bitcoin transaction $hashtrunc.";
@@ -675,10 +674,11 @@ function app_explore($req) {
         }
         $insertrss = "{$req->scheme}".HOSTNAME."{$rootpath}rssa/$address.xml";
         $hash160 = strtolower(addressToHash160($address));
-        $keyinfo = pg_fetch_assoc(db_query("SELECT encode(pubkey, 'hex') AS pubkey, 
-                                                   encode(firstseen, 'hex') AS firstseen 
-                                            FROM keys 
-                                            WHERE hash160 = decode($1, 'hex');", array($hash160)));
+        $keyinfo = SQL::d("SELECT encode(pubkey, 'hex') AS pubkey, 
+                                  encode(firstseen, 'hex') AS firstseen 
+                           FROM keys 
+                           WHERE hash160 = decode($1, 'hex');", array($hash160));
+
         $pubkey = $keyinfo["pubkey"];
         if($pubkey === false || is_null($pubkey))
         {
@@ -688,10 +688,10 @@ function app_explore($req) {
         if($firstseen !== false && !is_null($firstseen))
         {
             $knownaddress = true;
-            $blockinfo = pg_fetch_assoc(db_query("SELECT number, 
-                                                         time AT TIME ZONE 'UTC' AS time 
-                                                  FROM blocks 
-                                                  WHERE hash = decode($1, 'hex');", array($firstseen)));
+            $blockinfo = SQL::d("SELECT number, 
+                                        time AT TIME ZONE 'UTC' AS time 
+                                 FROM blocks 
+                                 WHERE hash = decode($1, 'hex');", array($firstseen));
             $blocknum = $blockinfo["number"];
             $blocktime = $blockinfo["time"];
             $blockstring = "<a href=\"{$rootpath}block/$firstseen\">Block $blocknum</a> ($blocktime)";
@@ -704,46 +704,49 @@ function app_explore($req) {
         $description = "List of transactions involving Bitcoin address $address.";
         $keywords = "address, $address, $hash160";
         
-        $mytxs = db_query("SELECT inputs.type AS txtype, 'debit' AS type, 
-                                  encode(inputs.tx, 'hex') AS tx, 
-                                  inputs.value AS value, inputs.id AS id, 
-                                  encode(transactions.block, 'hex') AS block, 
-                                  blocks.number AS blocknum, 
-                                  transactions.id AS tid, 
-                                  inputs.index AS index, 
-                                  blocks.time AT TIME ZONE 'UTC' AS time 
-                                  
-                           FROM inputs, transactions, blocks 
+        $mytxs = SQL("SELECT inputs.type AS txtype, 'debit' AS type, 
+                             encode(inputs.tx, 'hex') AS tx, 
+                             inputs.value AS value, inputs.id AS id, 
+                             encode(transactions.block, 'hex') AS block, 
+                             blocks.number AS blocknum, 
+                             transactions.id AS tid, 
+                             inputs.index AS index, 
+                             blocks.time AT TIME ZONE 'UTC' AS time 
+                             
+                      FROM inputs, transactions, blocks 
 
-                           WHERE inputs.hash160 = decode($1, 'hex') AND 
-                                 inputs.tx = transactions.hash AND 
-                                 transactions.block = blocks.hash 
-                                 
-                           UNION SELECT outputs.type AS txtype, 'credit' AS type, 
-                                        encode(outputs.tx, 'hex') AS tx, 
-                                        outputs.value AS value, outputs.index AS id, 
-                                        encode(transactions.block, 'hex') AS block, 
-                                        blocks.number AS blocknum, 
-                                        transactions.id AS tid, 
-                                        outputs.index AS index, 
-                                        blocks.time AT TIME ZONE 'UTC' AS time 
-                                        
-                           FROM outputs, transactions, blocks 
-                           
-                           WHERE outputs.hash160 = decode($1, 'hex') AND 
-                                 outputs.tx = transactions.hash AND 
-                                 transactions.block = blocks.hash 
-                                 
-                           ORDER BY blocknum, type, tid, index;", 
-                           
-                           array($hash160));
-        $txlimit = pg_num_rows($mytxs)-1;
+                      WHERE inputs.hash160 = decode($1, 'hex') AND 
+                            inputs.tx = transactions.hash AND 
+                            transactions.block = blocks.hash 
+                            
+                      UNION SELECT outputs.type AS txtype, 'credit' AS type, 
+                                   encode(outputs.tx, 'hex') AS tx, 
+                                   outputs.value AS value, outputs.index AS id, 
+                                   encode(transactions.block, 'hex') AS block, 
+                                   blocks.number AS blocknum, 
+                                   transactions.id AS tid, 
+                                   outputs.index AS index, 
+                                   blocks.time AT TIME ZONE 'UTC' AS time 
+                                   
+                      FROM outputs, transactions, blocks 
+                      
+                      WHERE outputs.hash160 = decode($1, 'hex') AND 
+                            outputs.tx = transactions.hash AND 
+                            transactions.block = blocks.hash 
+                            
+                      ORDER BY blocknum, type, tid, index;", 
+                      
+                      array($hash160));
+
+        $txlimit = SQL::count($mytxs)-1;
         $txcounter = 0;
+
         // cache
         if($knownaddress)
         {
-            $latesttx = pg_fetch_assoc($mytxs, $txlimit);
-            $latesttx = $latesttx["blocknum"];
+            SQL::seek($mytxs, $txlimit);
+            $latesttx = SQL::d($mytxs)["blocknum"];
+            SQL::seek($mytxs, 0);
         }
         else
         {
@@ -769,36 +772,36 @@ function app_explore($req) {
                 $start = $req->params[1]*$interval;
                 if($req->params[0] == "a")
                 {
-                    $data = db_query("SELECT '/address/' || address AS url, 
-                                             id 
-                                      FROM keys 
-                                      ORDER BY id 
+                    $data = SQL("SELECT '/address/' || address AS url, 
+                                        id 
+                                 FROM keys 
+                                 ORDER BY id 
 
-                                      OFFSET $1 
-                                      LIMIT $2;", array($start, $interval));
+                                 OFFSET $1 
+                                 LIMIT $2;", array($start, $interval));
                 }
                 if($req->params[0] == "t")
                 {
-                    $data = db_query("SELECT '/tx/' || encode(hash, 'hex') AS url, 
-                                             id 
-                                      FROM transactions 
-                                      ORDER BY id 
-                                      
-                                      OFFSET $1 
-                                      LIMIT $2;", array($start, $interval));
+                    $data = SQL("SELECT '/tx/' || encode(hash, 'hex') AS url, 
+                                        id 
+                                 FROM transactions 
+                                 ORDER BY id 
+                                 
+                                 OFFSET $1 
+                                 LIMIT $2;", array($start, $interval));
                 }
                 if($req->params[0] == "b")
                 {
-                    $data = db_query("SELECT '/block/' || encode(hash, 'hex') AS url, 
-                                             number AS id 
-                                      FROM blocks 
-                                      ORDER BY id 
-                                      
-                                      OFFSET $1 
-                                      LIMIT $2;", array($start, $interval));
+                    $data = SQL("SELECT '/block/' || encode(hash, 'hex') AS url, 
+                                        number AS id 
+                                 FROM blocks 
+                                 ORDER BY id 
+                                 
+                                 OFFSET $1 
+                                 LIMIT $2;", array($start, $interval));
                 }
-                $returnedresults = pg_num_rows($data);
-                $oneurl = pg_fetch_array($data);
+                $returnedresults = SQL::count($data);
+                $oneurl = SQL::a($data);
                 $buffer.= '<?xml version = "1.0" encoding = "ISO-8859-1"?>'."\n";
                 $buffer.= '<urlset xmlns = "http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
                 while($oneurl)
@@ -827,15 +830,15 @@ function app_explore($req) {
                     }
                     unset($priority, $changefreq);
                     $buffer.= '</url>'."\n";
-                    $oneurl = pg_fetch_array($data);
+                    $oneurl = SQL::a($data);
                 }
                 $buffer.= '</urlset>';
             }
             if(!isset($req->params[0]) && !isset($req->params[1]))
             {
-                $data = pg_fetch_assoc(db_query("SELECT (SELECT count(number) FROM blocks) AS blocks, 
-                                                        (SELECT count(id) FROM transactions) AS transactions,                                          (SELECT count(id) FROM keys) AS addresses;"));
-
+                $data = SQL::d("SELECT (SELECT count(number) FROM blocks) AS blocks, 
+                                       (SELECT count(id) FROM transactions) AS transactions,                                          
+                                       (SELECT count(id) FROM keys) AS addresses;"); 
                 $totaltx = ceil($data["transactions"]/$interval)-1;
                 $totalblk = ceil($data["blocks"]/$interval)-1;
                 $totaladdr = ceil($data["addresses"]/$interval)-1;
@@ -890,21 +893,21 @@ function app_explore($req) {
             die();
         }
         $hash160 = addressToHash160($address);
-        $query = db_query("SELECT to_char(blocks.time AT TIME ZONE 'UTC', 'Dy, DD Mon YYYY HH24:MI:SS +0000') AS time, 
-                                  outputs.value AS value, 
-                                  outputs.index AS oid, 
-                                  blocks.number AS number, 
-                                  encode(outputs.tx, 'hex') AS tx 
+        $query = SQL("SELECT to_char(blocks.time AT TIME ZONE 'UTC', 'Dy, DD Mon YYYY HH24:MI:SS +0000') AS time, 
+                             outputs.value AS value, 
+                             outputs.index AS oid, 
+                             blocks.number AS number, 
+                             encode(outputs.tx, 'hex') AS tx 
 
-                           FROM outputs JOIN blocks ON 
-                                (outputs.block = blocks.hash)
+                      FROM outputs JOIN blocks ON 
+                           (outputs.block = blocks.hash)
 
-                           WHERE outputs.hash160 = decode($1, 'hex') 
-                           ORDER BY outputs.id DESC LIMIT 20;", 
+                      WHERE outputs.hash160 = decode($1, 'hex') 
+                      ORDER BY outputs.id DESC LIMIT 20;", 
 
-                           array($hash160));
+                      array($hash160));
 
-        $onetx = pg_fetch_array($query);
+        $onetx = SQL::a($query);
         if($onetx === false)
         {
             cache("e");
@@ -942,7 +945,7 @@ function app_explore($req) {
             echo "<title>Received $amount BTC</title>\n";
             echo "<link>{$req->scheme}".HOSTNAME."${rootpath}address/$address#$anchor</link>"."\n";
             echo "</item>\n";
-            $onetx = pg_fetch_array($query);
+            $onetx = SQL::a($query);
         }
         // end content
         echo '</channel>'."\n";
@@ -1119,9 +1122,9 @@ ton of processing to make certain tasks, such as tracking transactions, easier. 
 
 EOD;
         
-        $latestblock = pg_fetch_array(db_query("SELECT max(number) AS latest FROM blocks;"));
-        $latestblock = $latestblock["latest"];
-        if($latestblock<CHECKPOINT)
+        $latestblock = SQL::s("SELECT max(number) FROM blocks;");
+
+        if($latestblock < CHECKPOINT)
         {
             echo "<p><span style = \"color:red\">Notice:</span> The block database is currently being reloaded (probably to enable some cool new feature). You can refresh this page to see the progress.</p>";
         }
@@ -1153,12 +1156,12 @@ EOD;
             echo "<td>$totalbtc</td>\n";
             echo "<td>$size</td>\n";
             echo "</tr>\n";
-            $oneblock = pg_fetch_assoc($result);
+            $oneblock = SQL::d($result);
         }
         echo "</table>\n";
         
         // /largest transactions last 300 blocks
-        /*$result = db_query("SELECT encode(inputs.tx, 'hex') AS hash, 
+        /*$result = SQL("SELECT encode(inputs.tx, 'hex') AS hash, 
                                      sum(inputs.value) AS totalvalue, 
                                      encode(blocks.hash, 'hex') AS blockhash, 
                                      blocks.number AS blocknum, 
@@ -1177,7 +1180,7 @@ EOD;
         echo "<h3>Largest transactions (last 300 blocks)".help("Sorted by BTC moved")."</h3>\n";
         echo "<table class = \"txtable\">\n";
         echo "<tr><th>Transaction".help("Truncated transaction hash.")."</th><th>Amount".help("BTC moved.")."</th><th>Block".help("The block this transaction appeared in.")."</th><th>Time".help("UTC network time of the block this appeared in (somewhat unreliable).")."</th></tr>\n";
-        $onetx = pg_fetch_assoc($result);
+        $onetx = SQL::d($result);
         while($onetx)
         {
             $txhash = $onetx["hash"];
@@ -1187,7 +1190,7 @@ EOD;
             $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
             $time = $onetx["time"];
             echo "<tr><td>$txhashtrunc</td><td>$amount</td><td>$blockview</td><td>$time</td></tr>";
-            $onetx = pg_fetch_assoc($result);
+            $onetx = SQL::d($result);
         }
         echo "</table>\n";
         
@@ -1196,20 +1199,20 @@ EOD;
         echo "<table class = \"txtable\">\n";
         echo "<tr><th>Transaction".help("Truncated transaction hash.")."</th><th>Block".help("The block this transaction appeared in.")."</th><th>Time".help("UTC network time of the block this appeared in (somewhat unreliable).")."</th></tr>\n";
 
-        $result = db_query("SELECT DISTINCT encode(outputs.tx, 'hex') AS txhash, 
-                                            encode(outputs.block, 'hex') AS blockhash, 
-                                            outputs.id, blocks.number AS blocknum, 
-                                            blocks.time AT TIME ZONE 'UTC' AS time 
+        $result = SQL("SELECT DISTINCT encode(outputs.tx, 'hex') AS txhash, 
+                                       encode(outputs.block, 'hex') AS blockhash, 
+                                       outputs.id, blocks.number AS blocknum, 
+                                       blocks.time AT TIME ZONE 'UTC' AS time 
 
-                            FROM outputs JOIN blocks ON 
-                                 (blocks.hash = outputs.block) 
+                       FROM outputs JOIN blocks ON 
+                            (blocks.hash = outputs.block) 
 
-                            WHERE outputs.type = 'Strange' 
-                            ORDER BY outputs.id DESC 
+                       WHERE outputs.type = 'Strange' 
+                       ORDER BY outputs.id DESC 
 
-                            LIMIT 20;"); 
+                       LIMIT 20;"); 
 
-        $onetx = pg_fetch_assoc($result);
+        $onetx = SQL::d($result);
         while($onetx)
         {
             $txhash = $onetx["txhash"];
@@ -1218,7 +1221,7 @@ EOD;
             $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
             $time = $onetx["time"];
             echo "<tr><td>$txhashtrunc</td><td>$blockview</td><td>$time</td></tr>";
-            $onetx = pg_fetch_assoc($result);
+            $onetx = SQL::d($result);
         }
         echo "</table>";*/
         
@@ -1231,23 +1234,23 @@ EOD;
     {
         echo "<p>Because getting this data is currently very slow, this data has been moved here from the front page until I rewrite my database code.</p>";
         
-        $result = db_query("SELECT encode(inputs.tx, 'hex') AS hash, 
-                                   sum(inputs.value) AS totalvalue, 
-                                   encode(blocks.hash, 'hex') AS blockhash, 
-                                   blocks.number AS blocknum, 
-                                   blocks.time AT TIME ZONE 'UTC' AS time 
+        $result = SQL("SELECT encode(inputs.tx, 'hex') AS hash, 
+                              sum(inputs.value) AS totalvalue, 
+                              encode(blocks.hash, 'hex') AS blockhash, 
+                              blocks.number AS blocknum, 
+                              blocks.time AT TIME ZONE 'UTC' AS time 
 
-                            FROM blocks JOIN inputs ON 
-                                 (inputs.block = blocks.hash) 
+                       FROM blocks JOIN inputs ON 
+                            (inputs.block = blocks.hash) 
 
-                            WHERE blocks.number > (SELECT max(blocks.number)-300 FROM blocks) 
-                            GROUP BY blocks.time, inputs.tx, blocks.hash, blocks.number 
-                            ORDER BY totalvalue DESC LIMIT 20;");
+                       WHERE blocks.number > (SELECT max(blocks.number)-300 FROM blocks) 
+                       GROUP BY blocks.time, inputs.tx, blocks.hash, blocks.number 
+                       ORDER BY totalvalue DESC LIMIT 20;");
 
         echo "<h3>Largest transactions (last 300 blocks)".help("Sorted by BTC moved")."</h3>\n";
         echo "<table class = \"txtable\">\n";
         echo "<tr><th>Transaction".help("Truncated transaction hash.")."</th><th>Amount".help("BTC moved.")."</th><th>Block".help("The block this transaction appeared in.")."</th><th>Time".help("UTC network time of the block this appeared in (somewhat unreliable).")."</th></tr>\n";
-        $onetx = pg_fetch_assoc($result);
+        $onetx = SQL::d($result);
         while($onetx)
         {
             $txhash = $onetx["hash"];
@@ -1257,7 +1260,7 @@ EOD;
             $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
             $time = $onetx["time"];
             echo "<tr><td>$txhashtrunc</td><td>$amount</td><td>$blockview</td><td>$time</td></tr>";
-            $onetx = pg_fetch_assoc($result);
+            $onetx = SQL::d($result);
         }
         echo "</table>\n";
 
@@ -1265,16 +1268,16 @@ EOD;
         echo "<table class = \"txtable\">\n";
         echo "<tr><th>Transaction".help("Truncated transaction hash.")."</th><th>Block".help("The block this transaction appeared in.")."</th><th>Time".help("UTC network time of the block this appeared in (somewhat unreliable).")."</th></tr>\n";
 
-        $result = db_query("SELECT DISTINCT encode(outputs.tx, 'hex') AS txhash, 
-                                            encode(outputs.block, 'hex') AS blockhash, 
-                                            outputs.id, blocks.number AS blocknum, 
-                                            blocks.time AT TIME ZONE 'UTC' AS time 
-                            FROM outputs JOIN blocks ON 
-                                 (blocks.hash = outputs.block) 
-                            WHERE outputs.type = 'Strange' 
-                            ORDER BY outputs.id DESC LIMIT 20;"); 
+        $result = SQL("SELECT DISTINCT encode(outputs.tx, 'hex') AS txhash, 
+                                      encode(outputs.block, 'hex') AS blockhash, 
+                                      outputs.id, blocks.number AS blocknum, 
+                                      blocks.time AT TIME ZONE 'UTC' AS time 
+                      FROM outputs JOIN blocks ON 
+                           (blocks.hash = outputs.block) 
+                      WHERE outputs.type = 'Strange' 
+                      ORDER BY outputs.id DESC LIMIT 20;"); 
 
-        $onetx = pg_fetch_assoc($result);
+        $onetx = SQL::d($result);
         while($onetx)
         {
             $txhash = $onetx["txhash"];
@@ -1283,7 +1286,7 @@ EOD;
             $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
             $time = $onetx["time"];
             echo "<tr><td>$txhashtrunc</td><td>$blockview</td><td>$time</td></tr>";
-            $onetx = pg_fetch_assoc($result);
+            $onetx = SQL::d($result);
         }
         echo "</table>";
         cacheput("txstats", ob_get_flush(), 60, $latestblock['latest'], 0);
@@ -1337,32 +1340,32 @@ EOD;
         
         // prepare SQL
 
-        db_prepare("transactions", "SELECT encode(hash, 'hex') AS hash, abs(fee) AS fee, size FROM transactions WHERE block = decode($1, 'hex') ORDER BY id;");
+        SQLPrepare("transactions", "SELECT encode(hash, 'hex') AS hash, abs(fee) AS fee, size FROM transactions WHERE block = decode($1, 'hex') ORDER BY id;");
 
-        db_prepare("outputs", "SELECT outputs.value AS value, keys.address AS address FROM outputs LEFT JOIN keys ON keys.hash160 = outputs.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id;");
+        SQLPrepare("outputs", "SELECT outputs.value AS value, keys.address AS address FROM outputs LEFT JOIN keys ON keys.hash160 = outputs.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id;");
 
-        db_prepare("inputs", "SELECT inputs.value AS value, keys.address AS address FROM inputs LEFT JOIN keys ON keys.hash160 = inputs.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;");
+        SQLPrepare("inputs", "SELECT inputs.value AS value, keys.address AS address FROM inputs LEFT JOIN keys ON keys.hash160 = inputs.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;");
         
         $coinbase = true;
         
         // special transactions
-        $result = db_query("SELECT encode(tx, 'hex') AS hash 
-                            FROM special WHERE block = decode($1, 'hex')", array($block));
+        $result = SQL("SELECT encode(tx, 'hex') AS hash 
+                       FROM special WHERE block = decode($1, 'hex')", array($block));
 
-        $row = pg_fetch_assoc($result);
+        $row = SQL::d($result);
         while($row)
         {
             $hash = $row["hash"];
             $hashtrunc = "<a href=\"{$rootpath}tx/$hash\">".substr($hash, 0, 10)."...</a>";
             echo "<tr><td colspan = \"5\">This transaction is an exact copy of $hashtrunc. This is usually caused by flawed custom miner code that rarely changes the keys used by generations, and is therefore likely to produce a generation transaction with the exact same data as a previous one by the same person. The network sees duplicate transactions as the same: only one can be redeemed.</td></tr>\n";
             $coinbase = false;
-            $row = pg_fetch_assoc($result);
+            $row = SQL::d($result);
         }
         
         // get list of transactions
-        $result = db_execute("transactions", array($block));
+        $result = SQLPrepare::execute("transactions", array($block));
 
-        $row = pg_fetch_assoc($result);
+        $row = SQL::d($result);
         
         // go through each transaction
         while($row)
@@ -1381,8 +1384,8 @@ EOD;
             echo "<td>$hashtrunc</td><td>$fee</td><td>$size</td>\n";
             
             // collect inputs
-            $inputs = db_execute("inputs", array($hash));
-            $oneinput = pg_fetch_assoc($inputs);
+            $inputs = SQLPrepare::execute("inputs", array($hash));
+            $oneinput = SQL::d($inputs);
             echo "<td><ul class = \"infoList\">\n";
             // go through inputs
             while($oneinput)
@@ -1413,13 +1416,13 @@ EOD;
                 
                 echo "<li>$address: $value</li>\n";
                 
-                $oneinput = pg_fetch_assoc($inputs);
+                $oneinput = SQL::d($inputs);
             }
             echo "</ul></td>\n";
             
             // collect outputs
-            $outputs = db_execute("outputs", array($hash));
-            $oneoutput = pg_fetch_assoc($outputs);
+            $outputs = SQLPrepare::execute("outputs", array($hash));
+            $oneoutput = SQL::d($outputs);
             echo "<td><ul class = \"infoList\">\n";
             // go through outputs
             while($oneoutput)
@@ -1445,7 +1448,7 @@ EOD;
                 
                 echo "<li>$address: $value</li>\n";
                 
-                $oneoutput = pg_fetch_assoc($outputs);
+                $oneoutput = SQL::d($outputs);
             }
             echo "</ul></td>\n";
             
@@ -1453,7 +1456,7 @@ EOD;
             
             echo "</tr>\n";
             
-            $row = pg_fetch_assoc($result);		
+            $row = SQL::d($result);		
         }
         
         echo "</table>\n";
@@ -1493,11 +1496,11 @@ EOD;
         echo "<li><a href=\"{$rootpath}rawtx/$hash\">Raw transaction</a>".help("Almost the same as getblock.")."</li>\n";
         // duplicate transactions
         $duplicate = "";
-        $duplicates = db_query("SELECT encode(block, 'hex') AS block 
-                                FROM special 
-                                WHERE tx = decode($1, 'hex')", array($hash));
+        $duplicates = SQL("SELECT encode(block, 'hex') AS block 
+                           FROM special 
+                           WHERE tx = decode($1, 'hex')", array($hash));
 
-        $onedup = pg_fetch_assoc($duplicates);
+        $onedup = SQL::d($duplicates);
         $firstdup = true;
         if($onedup)
         {
@@ -1511,7 +1514,7 @@ EOD;
                     $duplicate .= " , ";
                 }
                 $duplicate .= "<a href=\"{$rootpath}block/$blockhash\">".substr(removeLeadingZeroes($blockhash), 0, 10)."</a>";
-                $onedup = pg_fetch_assoc($duplicates);
+                $onedup = SQL::d($duplicates);
             }
             $duplicate .= "</li>";
         }
@@ -1563,7 +1566,7 @@ EOD;
             echo "<td>$type</td>\n";
             echo "<td><div class = \"hugeCell\">{$oneinput["scriptsig"]}</div></td>\n";
             echo "</tr>\n";
-            $oneinput = pg_fetch_assoc($inputs);
+            $oneinput = SQL::d($inputs);
         }
         
         echo "</table>\n";
@@ -1574,13 +1577,13 @@ EOD;
         echo "<tr><th>Index".help("Starts at 0 and increments for each output.")."</th><th>Redeemed at input".help("If this output has ever been spent by the recipient, the transaction that did it is listed here. (If you look at these links, you will see that I assign a number to each input. This is an internal ID unrelated to Bitcoin.)")."</th><th>Amount".help("BTC sent by this output")."</th><th>To address".help("Addresses this output was sent to")."</th><th>Type".help("The type of the output. Bitcoin only sends a few different types of transactions. 'Address' sends to an Bitcoin address. 'Pubkey' sends directly to a public key, and is used for IP transactions and generations. 'Strange' is an unusual transaction not created by the official Bitcoin client.")."</th><th>ScriptPubKey".help("This script specifies the conditions that must be met by someone attempting to redeem this output. Usually it contains a hash160 (Bitcoin address) or a public key.")."</th></tr>\n";
         // prepare query
 
-        db_prepare("redeemed", "SELECT id, encode(tx, 'hex') AS tx FROM inputs WHERE prev = decode('$hash', 'hex') AND index = $1");
+        SQLPrepare("redeemed", "SELECT id, encode(tx, 'hex') AS tx FROM inputs WHERE prev = decode('$hash', 'hex') AND index = $1");
         // go through outputs
         while($oneoutput)
         {
             $index = $oneoutput["index"];
             echo "<tr>\n";
-            $redeemed = pg_fetch_assoc(db_execute("redeemed", array($index)));
+            $redeemed = SQL::d(SQLPrepare::execute("redeemed", array($index)));
             if($redeemed !== false)
             {
                 $rtx = $redeemed["tx"];
@@ -1607,7 +1610,7 @@ EOD;
             echo "<td>$address</td>\n";
             echo "<td>{$oneoutput["type"]}</td>\n";
             echo "<td><div class = \"hugeCell\">{$oneoutput["scriptpubkey"]}</div></td>\n";
-            $oneoutput = pg_fetch_assoc($outputs);
+            $oneoutput = SQL::d($outputs);
             echo "</tr>\n";
         }
         echo "</table>\n";
@@ -1624,9 +1627,10 @@ EOD;
         
         // loop through our transactions. This is all echoed later.
         $balance = "0";
-        db_prepare("outputcounter", "SELECT DISTINCT outputs.type AS type, outputs.value AS value, outputs.id, keys.address AS address FROM outputs LEFT JOIN keys ON outputs.hash160 = keys.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id"); 
+
+        SQLPrepare("outputcounter", "SELECT DISTINCT outputs.type AS type, outputs.value AS value, outputs.id, keys.address AS address FROM outputs LEFT JOIN keys ON outputs.hash160 = keys.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id"); 
         
-        db_prepare("inputcounter", "SELECT DISTINCT inputs.value AS value, inputs.id, inputs.type AS type, keys.address AS address FROM inputs LEFT JOIN keys ON inputs.hash160 = keys.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;"); 
+        SQLPrepare("inputcounter", "SELECT DISTINCT inputs.value AS value, inputs.id, inputs.type AS type, keys.address AS address FROM inputs LEFT JOIN keys ON inputs.hash160 = keys.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;"); 
         
         $echothis = "";
         $totalcredits = 0;
@@ -1637,7 +1641,7 @@ EOD;
         while($txcounter <= $txlimit)
         {
             // limits
-            if($totalcredits+$totaldebits>5000 && !$stopcaching)
+            if($totalcredits + $totaldebits > 5000 && !$stopcaching)
             {
                 ob_end_clean();
                 $stopcaching = true;
@@ -1649,7 +1653,8 @@ EOD;
                     die();
                 }
             }
-            $onetx = pg_fetch_assoc($mytxs, $txcounter);
+            $onetx = SQL::d($mytxs);
+
             $txcounter++;
             $echothis.= "<tr>\n";
             
@@ -1699,8 +1704,8 @@ EOD;
             $superechothis.= "<td><ul class = \"infoList\">\n";
             if($cord == "Received")
             {
-                $counter = db_execute("inputcounter", array($tx));
-                $thisio = pg_fetch_assoc($counter);
+                $counter = SQLPrepare::execute("inputcounter", array($tx));
+                $thisio = SQL::d($counter);
                 while($thisio)
                 {
                     $address = $thisio["address"];
@@ -1718,14 +1723,14 @@ EOD;
                     $addressstring = "$address";
                     }
                     $superechothis.= "<li>$addressstring</li>\n";
-                    $thisio = pg_fetch_assoc($counter);
+                    $thisio = SQL::d($counter);
                 }
             }
             else // loop through counter outs if in
             {
                 $type = "";
-                $counter = db_execute("outputcounter", array($tx));
-                $thisio = pg_fetch_assoc($counter);
+                $counter = SQLPrepare::execute("outputcounter", array($tx));
+                $thisio = SQL::d($counter);
                 while($thisio)
                 {
                     // type determination
@@ -1752,7 +1757,7 @@ EOD;
                     $addressstring = "$address";
                     }
                     $superechothis.= "<li>$addressstring</li>\n";
-                    $thisio = pg_fetch_assoc($counter);
+                    $thisio = SQL::d($counter);
                 }
             }
             $superechothis.= "</ul></td>\n";

@@ -2,7 +2,7 @@
 
 require_once 'encode.inc';
 require_once 'jsonrpc.inc';
-require_once 'db.inc';
+require_once 'sql.inc';
 require_once 'cache.inc';
 
 function decodeCompact($c)
@@ -146,7 +146,7 @@ function app_stats($req) {
     Address::$version = $config::$address_version;
 
     rpcInit($config::$rpc);
-    db_init($config::$dbname);
+    SQL::init($config::$dbname);
 
     if($req->page != "mytransactions") {
         header("Cache-control: no-cache");
@@ -584,11 +584,11 @@ always seem to start with 04 (this must be included).
         $req->params[0] = (int)$req->params[0];
         if($req->params[0]>0)
         {
-            $avg = pg_fetch_result(db_query("SELECT round(avg(transactions.size), 0) 
-                                             FROM transactions JOIN blocks ON 
-                                                  (transactions.block = blocks.hash) 
-                                             WHERE blocks.number > (SELECT max(number) 
-                                             FROM blocks)-$1;", array($req->params[0])), 0);
+            $avg = SQL::s("SELECT round(avg(transactions.size), 0) 
+                           FROM transactions JOIN blocks ON 
+                                (transactions.block = blocks.hash) 
+                           WHERE blocks.number > (SELECT max(number) 
+                           FROM blocks)-$1;", array($req->params[0]));
             echo $avg;
         }
         else
@@ -607,17 +607,16 @@ always seem to start with 04 (this must be included).
         $req->params[0] = (int)$req->params[0];
         if($req->params[0]>0)
         {
-            $avg = pg_fetch_result(db_query("SELECT coalesce(round(avg(sum), 8), '0') 
-                                             FROM (SELECT sum(inputs.value), inputs.tx AS avg 
-                                                   FROM inputs JOIN blocks ON 
-                                                        (inputs.block = blocks.hash) 
+            $avg = SQL::s("SELECT coalesce(round(avg(sum), 8), '0') 
+                           FROM (SELECT sum(inputs.value), inputs.tx AS avg 
+                                 FROM inputs JOIN blocks ON 
+                                      (inputs.block = blocks.hash) 
 
-                                                   WHERE blocks.number > (SELECT max(number) FROM blocks)-$1 AND
-                                                         inputs.type <> 'Generation' 
-                                                   GROUP BY inputs.tx) AS a;", 
+                                 WHERE blocks.number > (SELECT max(number) FROM blocks)-$1 AND
+                                       inputs.type <> 'Generation' 
+                                 GROUP BY inputs.tx) AS a;", 
 
-                                            array($req->params[0])), 0);
-
+                           array($req->params[0]));
             echo $avg;
         }
         else
@@ -636,11 +635,10 @@ always seem to start with 04 (this must be included).
         $req->params[0] = (int)$req->params[0];
         if($req->params[0]>0)
         {
-            $avg = pg_fetch_result(db_query("SELECT round(avg(size), 0) AS avg 
-                                             FROM blocks 
-                                             WHERE blocks.number > (SELECT max(number) 
-                                                                    FROM blocks) - $1;", 
-                                             array($req->params[0])), 0);
+            $avg = SQL::s("SELECT round(avg(size), 0) AS avg 
+                           FROM blocks 
+                           WHERE blocks.number > (SELECT max(number) 
+                                                  FROM blocks) - $1;", array($req->params[0]));
             echo $avg;
         }
         else
@@ -672,12 +670,13 @@ always seem to start with 04 (this must be included).
             die();
         }
         
-        $avg = pg_fetch_result(db_query("SELECT round((EXTRACT ('epoch' FROM avg(time.time)))::numeric, 0) AS avg 
+        $avg = SQL::s("SELECT round((EXTRACT ('epoch' FROM avg(time.time)))::numeric, 0) AS avg 
 
-                                         FROM (SELECT time - lag(time, 1) OVER (ORDER BY time) AS time 
-                                               FROM blocks 
-                                               WHERE blocks.number > (SELECT max(number) - $1 FROM blocks)) AS time;", 
-                                         array($req->params[0])), 0);
+                       FROM (SELECT time - lag(time, 1) OVER (ORDER BY time) AS time 
+                             FROM blocks 
+                             WHERE blocks.number > (SELECT max(number) - $1 FROM blocks)) AS time;", 
+
+                       array($req->params[0]));
 
         cacheput("interval{$req->params[0]}", $avg, 30);
         echo $avg;
@@ -699,10 +698,13 @@ always seem to start with 04 (this must be included).
         }
         $req->params[0] = min(getblockcount()-getlastretarget(), $req->params[0]);
         $req->params[0] = max($req->params[0], 2);
-        $avg = pg_fetch_result(db_query("SELECT round((EXTRACT ('epoch' FROM avg(time.time)))::numeric, 0) AS avg    
-                                         FROM (SELECT time-lag(time, 1) OVER (ORDER BY time) AS time 
-                                         FROM blocks WHERE blocks.number>(SELECT max(number)-$1 FROM blocks)) AS time;", 
-                                         array($req->params[0])), 0);
+        $avg = SQL::s("SELECT round((EXTRACT ('epoch' FROM avg(time.time)))::numeric, 0) AS avg    
+                                     FROM (SELECT time-lag(time, 1) OVER (ORDER BY time) AS time 
+                                           FROM blocks WHERE blocks.number > (SELECT max(number)-$1 
+                                                                              FROM blocks)
+                                          ) AS time;", 
+
+                      array($req->params[0]));
 
         $blocksleft = (getlastretarget()+2016)-getblockcount();
         if($blocksleft == 0)
@@ -726,12 +728,13 @@ always seem to start with 04 (this must be included).
             echo "ERROR: invalid block count.";
             die();
         }
-        $avg = pg_fetch_result(db_query("SELECT round(avg(a.count), 3) AS avg 
-                                         FROM (SELECT block, count(*) AS count 
-                                               FROM transactions GROUP BY block) AS a JOIN blocks ON 
-                                                    (blocks.hash = a.block) 
-                                               WHERE blocks.number>(SELECT max(number)-$1 FROM blocks);",
-                                         array($req->params[0])), 0);
+        $avg = SQL::s("SELECT round(avg(a.count), 3) AS avg 
+                       FROM (SELECT block, count(*) AS count 
+                             FROM transactions GROUP BY block) AS a JOIN blocks ON 
+                                  (blocks.hash = a.block) 
+                             WHERE blocks.number > (SELECT max(number) - $1 
+                                                    FROM blocks);",
+                      array($req->params[0]));
         echo $avg;
     }
 
@@ -769,12 +772,13 @@ always seem to start with 04 (this must be included).
         if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
         {
             $hash160 = addressToHash160($req->params[0]);
-            $sum = pg_fetch_result(db_query("SELECT sum(value) AS sum 
-                                             FROM outputs 
-                                             WHERE hash160 = decode($1, 'hex') AND 
-                                                   block NOT IN (SELECT hash 
-                                                                 FROM blocks ORDER BY number DESC LIMIT $2);", 
-                                                                 array($hash160, $minconf-1)), 0);
+            $sum = SQL::s("SELECT sum(value) AS sum 
+                           FROM outputs 
+                           WHERE hash160 = decode($1, 'hex') AND 
+                                 block NOT IN (SELECT hash 
+                                               FROM blocks ORDER BY number DESC LIMIT $2);", 
+
+                           array($hash160, $minconf-1));
 
             if(!$sum)
                 $sum = 0;
@@ -803,7 +807,10 @@ always seem to start with 04 (this must be included).
         if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
         {
             $hash160 = addressToHash160($req->params[0]);
-            $sum = pg_fetch_result(db_query("SELECT sum(value) AS sum FROM inputs WHERE hash160 = decode($1, 'hex');", array($hash160)), 0);
+            $sum = SQL::s("SELECT sum(value) AS sum 
+                           FROM inputs 
+                           WHERE hash160 = decode($1, 'hex');", array($hash160));
+
             if(!$sum)
                 $sum = 0;
 
@@ -832,11 +839,16 @@ always seem to start with 04 (this must be included).
         if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
         {
             $hash160 = addressToHash160($req->params[0]);
-            $sent = pg_fetch_result(db_query("SELECT sum(value) AS sum FROM inputs WHERE hash160 = decode($1, 'hex');", array($hash160)), 0);
+            $sent = SQL::s("SELECT sum(value) 
+                            FROM inputs 
+                            WHERE hash160 = decode($1, 'hex');", array($hash160));
             if(!$sent)
                 $sent = 0;
             
-            $received = pg_fetch_result(db_query("SELECT sum(value) AS sum FROM outputs WHERE hash160 = decode($1, 'hex');", array($hash160)), 0);
+            $received = SQL::s("SELECT sum(value) 
+                                FROM outputs 
+                                WHERE hash160 = decode($1, 'hex');", array($hash160));
+
             if(!$received)
                 $received = 0;
 
@@ -862,10 +874,10 @@ always seem to start with 04 (this must be included).
         }
         if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
         {
-            $result = pg_fetch_result(db_query("SELECT time AT TIME ZONE 'UTC' AS time 
-                                                FROM keys JOIN blocks ON 
-                                                     (keys.firstseen = blocks.hash) 
-                                                WHERE address = $1;", array($req->params[0])), 0);
+            $result = SQL::s("SELECT time AT TIME ZONE 'UTC'
+                              FROM keys JOIN blocks ON 
+                                   (keys.firstseen = blocks.hash) 
+                              WHERE address = $1;", array($req->params[0]));
             if(!$result)
                 $result = "Never seen";
 
@@ -905,7 +917,7 @@ this time, calculated from the average interval and average target.\n";
 
         echo "blockNumber, time, target, avgTargetSinceLast, difficulty, hashesToWin, avgIntervalSinceLast, netHashPerSecond\n";
         echo "START DATA\n";
-        $query = db_query("SELECT number, 
+        $query = SQL("SELECT number, 
                                   EXTRACT ('epoch' FROM time) AS time, 
                                   bits, 
                                   round(EXTRACT ('epoch' 
@@ -922,7 +934,7 @@ this time, calculated from the average interval and average target.\n";
                            
                            array($req->params[0]));
 
-        $onerow = pg_fetch_assoc($query);
+        $onerow = SQL::d($query);
         
         while($onerow)
         {
@@ -954,14 +966,14 @@ this time, calculated from the average interval and average target.\n";
             $avghashestowin = bcdiv("1", bcdiv($avgtarget, "115792089237316195423570985008687907853269984665640564039457584007913129639935", 55), 0);
             $nethash = bcdiv($avghashestowin, $avginterval, 0);
             echo "$number, $time, $target, $avgtarget, $difficulty, $hashestowin, $avginterval, $nethash\n";
-            $onerow = pg_fetch_assoc($query);
+            $onerow = SQL::d($query);
         }
         
         /*for($i = 0;$i<getblockcount();$i += 144)
         {
             $start = $i;
             $stop = $start+144;
-            $onerow = pg_fetch_array(db_query("SELECT bstat.number AS number, bstat.time AS time, bstat.bits AS bits, round((EXTRACT ('epoch' FROM bavg.time))::numeric, 0) AS avg FROM (SELECT avg(time.time)::interval AS time FROM (SELECT time-lag(time, 1) OVER (ORDER BY time) AS time FROM blocks WHERE blocks.number>$1 AND blocks.number<($2+1)) AS time) AS bavg, (SELECT number, EXTRACT ('epoch' FROM time) AS time, bits FROM blocks WHERE number = $2) AS bstat;", array($start, $stop)));
+            $onerow = SQL::a(SQL("SELECT bstat.number AS number, bstat.time AS time, bstat.bits AS bits, round((EXTRACT ('epoch' FROM bavg.time))::numeric, 0) AS avg FROM (SELECT avg(time.time)::interval AS time FROM (SELECT time-lag(time, 1) OVER (ORDER BY time) AS time FROM blocks WHERE blocks.number>$1 AND blocks.number<($2+1)) AS time) AS bavg, (SELECT number, EXTRACT ('epoch' FROM time) AS time, bits FROM blocks WHERE number = $2) AS bstat;", array($start, $stop)));
             $number = $onerow['number'];
             $time = $onerow['time'];
             $target = decodeCompact($onerow['bits']);
@@ -1059,12 +1071,9 @@ must also be considered to be an error.
                 senderror(400);
                 die();
             }
-            $blocklimit = pg_fetch_assoc(db_query("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", array($req->params[1])));
-            $blocklimit = (int)$blocklimit["number"];
-            if(empty($blocklimit))
-            {
+            $blocklimit = (int)SQL::s("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", array($req->params[1]));
+            if(!$blocklimit)
                 $blocklimit = 0;
-            }
         }
         else
         {
@@ -1094,11 +1103,11 @@ FROM outputs JOIN transactions ON (outputs.tx = transactions.hash) JOIN blocks O
 WHERE outputs.type = 'Address' AND blocks.number>$1 AND outputs.hash160 IN ($addresses)
 ORDER BY tid;
 EOF;
-        $result = db_query($sql, array($blocklimit));
+        $result = SQL($sql, array($blocklimit));
         $return = (object)array();
-        $maxrow = pg_num_rows($result);
+        $maxrow = SQL::count($result);
         $counter = 0;
-        while($row = pg_fetch_assoc($result))
+        while($row = SQL::d($result))
         {
             $rowtx = json_decode($row["rawtx"]);
             $block = $row["block"];
