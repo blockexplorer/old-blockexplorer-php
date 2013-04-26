@@ -116,14 +116,7 @@ function cacheget($key)
 	
 	// cache
 	if($etag != 0)
-	{
-		if(cache($etag, false, false))
-		{
-			flock($file, LOCK_UN);
-			fclose($file);
-			die();
-		}
-	}
+		cache($etag);
 	
 	fgets($file); // advance pointer
 	$data = fread($file, $length);
@@ -147,7 +140,7 @@ function cacheget($key)
 	}
 }
 
-function cache($etag = VERSION, $customcache = false, $die = true)
+function cache($etag = VERSION, $customcache = false)
 {
     if(!ENABLE_CACHING) 
         return true;
@@ -172,10 +165,7 @@ function cache($etag = VERSION, $customcache = false, $die = true)
     $tags = preg_split("/, /", stripslashes($v));
     if(in_array($etag, $tags)) {
         header($_SERVER["SERVER_PROTOCOL"]." 304 Not Modified");
-        if($die)
-            die();
-        else
-            return true;
+        die();
     }
 }
 

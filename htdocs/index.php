@@ -121,8 +121,6 @@ class Request {
 }
 
 $req = new Request();
-//header("Content-type: text/plain"); print_r($req); die();
-
 
 if($req->app == "stats") {
 
