@@ -116,7 +116,7 @@ function cacheget($key)
 	
 	// cache
 	if($etag)
-		handle_etag($etag);
+		handle_client_side_caching($etag);
 	
 	fgets($file); // advance pointer
 	$data = fread($file, $length);
@@ -143,7 +143,7 @@ function cacheget($key)
 // set etag for this URI and expires headers. 
 // If browser has seen our etag, return a 304 Not modified
 
-function handle_etag($etag = APP_VERSION, $customcache = false)
+function handle_client_side_caching($etag = APP_VERSION, $customcache = false)
 {
     if(!ENABLE_CACHING) 
         return true;
@@ -284,7 +284,7 @@ function app_explore($req) {
         $oneblock = SQL::d($result);
         $endingcache = $oneblock["number"];
 
-        handle_etag($endingcache);
+        handle_client_side_caching($endingcache);
     }
     if($req->page == "txstats")
     {
@@ -300,7 +300,7 @@ function app_explore($req) {
         $description = "Largest transactions and strange transactions.";
         $keywords = "";
         $latestblock = SQL::val("SELECT max(number) AS latest FROM blocks;");
-        handle_etag($latestblock);
+        handle_client_side_caching($latestblock);
     }
     // /Search
     if($req->page == "search") {
@@ -434,7 +434,7 @@ function app_explore($req) {
         }
         else
         {
-        handle_etag();
+        handle_client_side_caching();
         echo $raw;
         die();
         }
@@ -459,7 +459,7 @@ function app_explore($req) {
         }
         else
         {
-        handle_etag();
+        handle_client_side_caching();
         echo $raw;
         die();
         }
@@ -508,13 +508,13 @@ function app_explore($req) {
 
         if($next)
         {
-            handle_etag();
+            handle_client_side_caching();
         }
         else
         {
             // Don't cache blocks that are the latest (we're waiting for the next block)
             $donotcache = true;
-            handle_etag(APP_VERSION."o");
+            handle_client_side_caching(APP_VERSION."o");
         }
         
         
@@ -560,7 +560,7 @@ function app_explore($req) {
             error("No such transaction", 404);
             goto headerend;
         }
-        // handle_etag();
+        // handle_client_side_caching();
         // this needs to be fixed
         
         $outputs = SQL("SELECT outputs.index AS index, 
@@ -711,11 +711,11 @@ function app_explore($req) {
         {
             $latesttx = -1;
         }
-        handle_etag($latesttx);
+        handle_client_side_caching($latesttx);
     }
     if($req->page == "nojshelp")
     {
-        handle_etag();
+        handle_client_side_caching();
         $title = "Scriptless help";
     }
 
@@ -833,7 +833,7 @@ function app_explore($req) {
             {
                 $expires = 600;
             }
-            handle_etag($bufferhash, $expires);
+            handle_client_side_caching($bufferhash, $expires);
             header("Content-type: text/xml");
             echo $buffer;
             die();
@@ -869,13 +869,13 @@ function app_explore($req) {
         $onetx = SQL::a($query);
         if($onetx === false)
         {
-            handle_etag("e");
+            handle_client_side_caching("e");
         }
         else
         {
             $builddate = $onetx["time"];
             $anchor = substr($onetx["tx"], 0, 16)."o{$onetx["oid"]}";
-            handle_etag($anchor);
+            handle_client_side_caching($anchor);
         }
         echo '<?xml version = "1.0" encoding = "ISO-8859-1" ?>'."\n";
         // echo ""."\n";
@@ -917,7 +917,7 @@ function app_explore($req) {
     if($req->page == "robots.txt" && ( ! isset($senthost) || $senthost != $my_name))
     {
         error_log("Deny search engine using odd host $senthost");
-        handle_etag();
+        handle_client_side_caching();
         header("Content-type: text/plain");
         echo "User-agent: *
     Disallow: /";
