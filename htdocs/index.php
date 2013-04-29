@@ -3,6 +3,33 @@
 include_once 'includes/config.inc';
 include_once 'includes/http.inc';
 
+/**
+ * Returns the equivalent of Apache's $_SERVER['REQUEST_URI'] variable.
+ *
+ * Because $_SERVER['REQUEST_URI'] is only available on Apache, we generate an
+ * equivalent using other environment variables.
+ */
+function request_uri() {
+  if (isset($_SERVER['REQUEST_URI'])) {
+    $uri = $_SERVER['REQUEST_URI'];
+  }
+  else {
+    if (isset($_SERVER['argv'])) {
+      $uri = $_SERVER['SCRIPT_NAME'] . '?' . $_SERVER['argv'][0];
+    }
+    elseif (isset($_SERVER['QUERY_STRING'])) {
+      $uri = $_SERVER['SCRIPT_NAME'] . '?' . $_SERVER['QUERY_STRING'];
+    }
+    else {
+      $uri = $_SERVER['SCRIPT_NAME'];
+    }
+  }
+  // Prevent multiple slashes to avoid cross site requests via the Form API.
+  $uri = '/' . ltrim($uri, '/');
+
+  return $uri;
+}
+
 class Request {
     public $app = "explore";
 
@@ -21,7 +48,7 @@ class Request {
         global $_SERVER;
 
         //set up variables for checking
-        $fullpath=$_SERVER['REQUEST_URI'];
+        $fullpath=request_uri();
         $querystart=strpos($fullpath,"?");
         if($querystart === false) {
             $path=$fullpath;
@@ -121,6 +148,7 @@ class Request {
 }
 
 $req = new Request();
+//var_dump($req); die();
 
 if($req->app == "stats") {
 
