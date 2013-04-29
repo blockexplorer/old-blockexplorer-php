@@ -66,12 +66,6 @@ function removeLeadingZeroes($value)
 		return $value;
 }
 
-function decodeCompact($c)
-{
-	$nbytes = ($c >> 24) & 0xFF;
-	return bcmul($c & 0xFFFFFF, bcpow(2, 8 * ($nbytes - 3)));
-}
-
 function thousands($num)
 {
 	$start = strpos($num, ".");

@@ -5,17 +5,6 @@ require_once 'jsonrpc.inc';
 require_once 'sql.inc';
 require_once 'cache.inc';
 
-function decodeCompact($c)
-{
-	$nbytes = ($c >> 24) & 0xFF;
-	return bcmul($c & 0xFFFFFF, bcpow(2, 8 * ($nbytes - 3)));
-}
-
-function encodeCompact($in)
-{
-	return exec("/var/www/blockexplorer.com/bin/getcompact.py $in");
-}
-
 $getblockcountcache = 0;
 function getblockcount()
 {
