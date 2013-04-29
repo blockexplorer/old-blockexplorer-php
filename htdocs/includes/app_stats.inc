@@ -22,7 +22,7 @@ function getblockcount()
 	global $getblockcountcache;
 	if($getblockcountcache == 0)
 	{
-		$cache = cacheget("getblockcount");
+		$cache = Cache::get("getblockcount");
 		if($cache !== false)
 			return (integer)$cache;
 		
@@ -36,7 +36,7 @@ function getblockcount()
 		}
 		$getblockcountcache = $data["r"];
 		
-		cacheput("getblockcount", $data["r"], 5);
+		Cache::put("getblockcount", $data["r"], 5);
 		return $data["r"];
 	}
 	else
@@ -47,7 +47,7 @@ function getblockcount()
 
 function getdifficulty()
 {
-	$cache = cacheget("getdifficulty");
+	$cache = Cache::get("getdifficulty");
 	if($cache !== false)
 		return $cache;
 		
@@ -59,12 +59,12 @@ function getdifficulty()
 		error_log("/q/ getdifficulty failure: {$data["e"]}");
 		die();
 	}
-	cacheput("getdifficulty", $data["r"], 20);
+	Cache::put("getdifficulty", $data["r"], 20);
 	return $data["r"];
 }
 function getblockbynumber($num)
 {
-	$cache = cacheget("getblock$num");
+	$cache = Cache::get("getblock$num");
 	if($cache !== false)
 		return unserialize($cache);
 	
@@ -77,7 +77,7 @@ function getblockbynumber($num)
 		die();
 	}
 	
-	cacheput("getblock$num", serialize($data["r"]), 10);
+	Cache::put("getblock$num", serialize($data["r"]), 10);
 	return $data["r"];
 }
 
@@ -663,7 +663,7 @@ always seem to start with 04 (this must be included).
             die();
         }
         
-        $cache = cacheget("interval{$req->params[0]}");
+        $cache = Cache::get("interval{$req->params[0]}");
         if($cache !== false)
         {
             echo (integer)$cache;
@@ -678,7 +678,7 @@ always seem to start with 04 (this must be included).
 
                        array($req->params[0]));
 
-        cacheput("interval{$req->params[0]}", $avg, 30);
+        Cache::put("interval{$req->params[0]}", $avg, 30);
         echo $avg;
     }
 
@@ -994,34 +994,6 @@ this time, calculated from the average interval and average target.\n";
         // This RELIES on the fact that only address transactions will be sent/received
         ini_set("zlib.output_compression", "On");
         
-        function cache($etag)
-        {
-            $version = 1;
-            $etag = (string)$etag."-".$version;
-            $baseetag = $etag;
-            $etag = "W/\"$etag\"";
-            header("ETag: $etag");
-            
-            if(isset($_SERVER['HTTP_IF_NONE_MATCH']) && !is_null($_SERVER['HTTP_IF_NONE_MATCH']) && !empty($_SERVER['HTTP_IF_NONE_MATCH']))
-            {
-                $tags = stripslashes($_SERVER['HTTP_IF_NONE_MATCH']);
-                $tags = preg_split("/, /", $tags );
-                foreach($tags as $tag)
-                {
-                    if($tag == $etag)
-                    {
-                        header($_SERVER["SERVER_PROTOCOL"]." 304 Not Modified");
-                        die();
-                        
-                    }
-                }
-            }
-            else
-            {
-                return false;
-            }
-        }
-        
         if(empty($req->params[0])) {
             echo "Returns all transactions sent or received by the period-separated Bitcoin
 addresses in parameter 1. The optional parameter 2 contains a hexadecimal block
@@ -1119,7 +1091,7 @@ EOF;
             $counter++;
             if($counter == $maxrow)
             {
-                cache($block);
+                Cache::handle_client_side_etag($block);
             }
             
             // add additional info

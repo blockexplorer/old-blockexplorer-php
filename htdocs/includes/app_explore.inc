@@ -1,6 +1,5 @@
 <?php
 
-define("APP_VERSION", 19);
 define("CHECKPOINT", 128281);
 define("MAINTMODE", false);
 define("ADDRQUIT", true); // false will send broken HTML
@@ -11,6 +10,7 @@ $title = "Error";
 
 require_once 'encode.inc';
 require_once 'sql.inc';
+require_once 'cache.inc';
 
 date_default_timezone_set('UTC');
 function error($message, $status = false)
@@ -30,146 +30,6 @@ function error($message, $status = false)
 		echo "<p>".$message."</p>\n";
 		echo "<p>Tell me (theymos) if this is a bug.</p>\n";
 	}
-}
-
-function cacheput($key, $data, $secs, $etag = 0, $headerexpires = 86400)
-{
-	$shm = "/tmp/bbe/";
-	if(!file_exists($shm))
-	{
-		if(!mkdir($shm))
-			return false;
-		chmod($shm, 0775);
-	}
-	
-	$length = strlen($data);
-	$chk = crc32($data);
-	$expires = time()+$secs;
-	$header = "$expires;$length;$chk;$etag;$headerexpires";
-	$data = $header."\n\n".$data;
-	
-	$file = fopen($shm.$key, "c");
-	if($file === false)
-		return false;
-	if(!flock($file, LOCK_EX))
-		return false;
-	ftruncate($file, 0);
-	fwrite($file, $data);
-	flock($file, LOCK_UN);
-	fclose($file);
-}
-
-function cacheget($key)
-{
-    if(!ENABLE_CACHING)
-        return false;
-
-	$shm = "/tmp/bbe/";
-	if(!file_exists($shm))
-	{
-		if(!mkdir($shm))
-			return false;
-		chmod($shm, 0775);
-	}
-	
-	if(!file_exists($shm.$key))
-	{
-		return false;
-	}
-	
-	$file = @fopen($shm.$key, "r");
-	if($file === false)
-		return false;
-	if(!flock($file, LOCK_SH))
-		return false;
-	$header = explode(";", fgets($file));
-	$time = $header[0];
-	$length = $header[1];
-	$chk = $header[2];
-	if(isset($header[3])) // REMOVE THE CHECK LATER
-	{
-		$etag = $header[3];
-		$headerexpires = $header[4];
-	}
-	else
-	{
-		$cache = 0;
-		$headerexpires = 0;
-	}
-	
-	if(empty($time) || empty($length) || empty($chk))
-		return false;
-	
-	if($time<time())
-	{
-		flock($file, LOCK_UN);
-		fclose($file);
-		$file = fopen($shm.$key, "c");
-		if($file === false)
-			return false;
-		flock($file, LOCK_EX);
-		@unlink($shm.$key);
-		flock($file, LOCK_UN);
-		fclose($file);
-		return false;
-	}
-	
-	// cache
-	if($etag)
-		handle_client_side_caching($etag);
-	
-	fgets($file); // advance pointer
-	$data = fread($file, $length);
-	if(!empty($data) && strlen($data) == $length && crc32($data) == $chk)
-	{
-		flock($file, LOCK_UN);
-		fclose($file);
-		return $data;
-	}
-	else
-	{
-		error_log("Bad cache file: $key, length $length");
-		flock($file, LOCK_UN);
-		fclose($file);
-		$file = fopen($shm.$key, "c");
-		flock($file, LOCK_EX);
-		unlink($shm.$key);
-		flock($file, LOCK_UN);
-		fclose($file);
-		return false;
-	}
-}
-
-// set etag for this URI and expires headers. 
-// If browser has seen our etag, return a 304 Not modified
-
-function handle_client_side_caching($etag = APP_VERSION, $customcache = false)
-{
-    if(!ENABLE_CACHING) 
-        return true;
-
-	$etag = (string)$etag;
-	if($etag != APP_VERSION)
-		$etag = $etag."-".APP_VERSION;
-	$etag = "W/\"$etag\"";
-
-	header("ETag: $etag");
-
-	if($customcache !== false)
-        header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + $customcache));
-    else
-		header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() -1500));
-	
-    $k = "HTTP_IF_NONE_MATCH";
-    $v = isset($_SERVER[$k]) ? $_SERVER[$k] : null;
-    if(!$v) 
-        return false;
-
-    $tags = preg_split("/, /", stripslashes($v));
-    if(in_array($etag, $tags)) {
-        header($_SERVER["SERVER_PROTOCOL"]." 304 Not Modified");
-        die();
-    }
 }
 
 function help($message)
@@ -260,7 +120,7 @@ function app_explore($req) {
     // /Homepage
     if($req->page == "home")
     {
-        $cache = cacheget("home");
+        $cache = Cache::get("home");
         if($cache !== false)
         {
             echo $cache;
@@ -282,13 +142,13 @@ function app_explore($req) {
                        ORDER BY number DESC LIMIT 20;");
 
         $oneblock = SQL::d($result);
-        $endingcache = $oneblock["number"];
+        $etag = $oneblock["number"];
 
-        handle_client_side_caching($endingcache);
+        Cache::handle_client_side_etag($etag);
     }
     if($req->page == "txstats")
     {
-        $cache = cacheget("txstats");
+        $cache = Cache::get("txstats");
         if($cache !== false)
         {
             echo $cache;
@@ -300,7 +160,7 @@ function app_explore($req) {
         $description = "Largest transactions and strange transactions.";
         $keywords = "";
         $latestblock = SQL::val("SELECT max(number) AS latest FROM blocks;");
-        handle_client_side_caching($latestblock);
+        Cache::handle_client_side_etag($latestblock);
     }
     // /Search
     if($req->page == "search") {
@@ -434,7 +294,7 @@ function app_explore($req) {
         }
         else
         {
-        handle_client_side_caching();
+        Cache::handle_client_side_etag();
         echo $raw;
         die();
         }
@@ -459,7 +319,7 @@ function app_explore($req) {
         }
         else
         {
-        handle_client_side_caching();
+        Cache::handle_client_side_etag();
         echo $raw;
         die();
         }
@@ -467,7 +327,7 @@ function app_explore($req) {
     // /Block
     if($req->page == "block")
     {
-        $cache = cacheget($req->page.md5($req->params[0]));
+        $cache = Cache::get($req->page . md5($req->params[0]));
         if($cache !== false)
         {
             echo $cache;
@@ -507,17 +367,8 @@ function app_explore($req) {
                         WHERE prev = decode($1, 'hex');", array($block));
 
         if($next)
-        {
-            handle_client_side_caching();
-        }
-        else
-        {
-            // Don't cache blocks that are the latest (we're waiting for the next block)
-            $donotcache = true;
-            handle_client_side_caching(APP_VERSION."o");
-        }
-        
-        
+            Cache::handle_client_side_etag();
+
         $title = "Block {$result["number"]}";
         $description = "List of transactions in Bitcoin block #{$result["number"]}.";
         $keywords = "block, {$result["number"]}, $block";
@@ -525,7 +376,7 @@ function app_explore($req) {
     // /Transaction
     if($req->page == "tx")
     {
-        $cache = cacheget($req->page.md5($req->params[0]));
+        $cache = Cache::get($req->page . md5($req->params[0]));
         if($cache !== false)
         {
             echo $cache;
@@ -560,7 +411,7 @@ function app_explore($req) {
             error("No such transaction", 404);
             goto headerend;
         }
-        // handle_client_side_caching();
+        // Cache::handle_client_side_etag();
         // this needs to be fixed
         
         $outputs = SQL("SELECT outputs.index AS index, 
@@ -615,7 +466,7 @@ function app_explore($req) {
     if($req->page == "address")
     {
         $cachename = $req->params[0];
-        $cache = cacheget("addr".md5($cachename));
+        $cache = Cache::get("addr" . md5($cachename));
         if($cache !== false)
         {
             echo $cache;
@@ -711,11 +562,11 @@ function app_explore($req) {
         {
             $latesttx = -1;
         }
-        handle_client_side_caching($latesttx);
+        Cache::handle_client_side_etag($latesttx);
     }
     if($req->page == "nojshelp")
     {
-        handle_client_side_caching();
+        Cache::handle_client_side_etag();
         $title = "Scriptless help";
     }
 
@@ -825,15 +676,9 @@ function app_explore($req) {
                 $buffer.= '</sitemapindex>';
             }
             $bufferhash = hash("md4", $buffer);
-            if($returnedresults == $interval)
-            {
-                $expires = 604800;
-            }
-            else
-            {
-                $expires = 600;
-            }
-            handle_client_side_caching($bufferhash, $expires);
+
+            Cache::handle_client_side_etag($bufferhash, ($returnedresults == $interval) ? 604800 : 600);
+
             header("Content-type: text/xml");
             echo $buffer;
             die();
@@ -869,13 +714,13 @@ function app_explore($req) {
         $onetx = SQL::a($query);
         if($onetx === false)
         {
-            handle_client_side_caching("e");
+            Cache::handle_client_side_etag("e");
         }
         else
         {
             $builddate = $onetx["time"];
             $anchor = substr($onetx["tx"], 0, 16)."o{$onetx["oid"]}";
-            handle_client_side_caching($anchor);
+            Cache::handle_client_side_etag($anchor);
         }
         echo '<?xml version = "1.0" encoding = "ISO-8859-1" ?>'."\n";
         // echo ""."\n";
@@ -917,7 +762,7 @@ function app_explore($req) {
     if($req->page == "robots.txt" && ( ! isset($senthost) || $senthost != $my_name))
     {
         error_log("Deny search engine using odd host $senthost");
-        handle_client_side_caching();
+        Cache::handle_client_side_etag();
         header("Content-type: text/plain");
         echo "User-agent: *
     Disallow: /";
@@ -1186,7 +1031,7 @@ EOD;
         
         echo "<p>Largest transactions and strange transactions have been temporarily moved <a href=\"{$rootpath}txstats\">here</a>.</p>";
         
-        cacheput("home", ob_get_flush(), 30, $endingcache, 0);
+        Cache::put("home", ob_get_flush(), 30, $etag);
     }
 
     if($req->page == "txstats")
@@ -1248,7 +1093,7 @@ EOD;
             $onetx = SQL::d($result);
         }
         echo "</table>";
-        cacheput("txstats", ob_get_flush(), 60, $latestblock['latest'], 0);
+        Cache::put("txstats", ob_get_flush(), 60, $latestblock['latest']);
     }
 
     if($req->page == "block")
@@ -1419,14 +1264,10 @@ EOD;
         }
         
         echo "</table>\n";
-        if(!isset($donotcache))
-        {
-            cacheput("block".md5($req->params[0]), ob_get_flush(), 300, APP_VERSION);
-        }
+        if($next)
+            Cache::put("block".md5($req->params[0]), ob_get_flush(), 300, true);
         else
-        {
-            cacheput("block".md5($req->params[0]), ob_get_flush(), 300, APP_VERSION."o", 0);
-        }
+            Cache::put("block".md5($req->params[0]), ob_get_flush(), 300);
     }
 
     if($req->page == "tx")
@@ -1574,7 +1415,7 @@ EOD;
         }
         echo "</table>\n";
         
-        cacheput("tx".md5($req->params[0]), ob_get_flush(), 300, APP_VERSION);
+        Cache::put("tx".md5($req->params[0]), ob_get_flush(), 300, true);
     }
 
     if($req->page == "address")
@@ -1764,7 +1605,7 @@ EOD;
         echo "</table>\n";
         
         if($stopcaching)
-            cacheput("addr".md5($cachename), ob_get_flush(), 30, $latesttx, 0);
+            Cache::put("addr".md5($cachename), ob_get_flush(), 30, $latesttx, 0);
     }
 
     end:
