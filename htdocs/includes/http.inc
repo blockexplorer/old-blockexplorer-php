@@ -21,21 +21,22 @@ function redirect($path, $type = 302)
 
 function senderror($error)
 {
-	if($error == 404)
-	{
-		header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
-	}
-	if($error == 400)
-	{
-		header($_SERVER["SERVER_PROTOCOL"]." 400 Bad Request");
-	}
-	if($error == 503)
-	{
-		header($_SERVER["SERVER_PROTOCOL"]." 503 Service Unavailable");
-		header("Retry-After: 7200");
-	}
-	if($error == 500)
-	{
-		header($_SERVER["SERVER_PROTOCOL"]." 500 Internal Server Error");
-	}
+    switch ($error) {
+        case 404:
+            header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
+            break;
+
+        case 400:
+            header($_SERVER["SERVER_PROTOCOL"]." 400 Bad Request");
+            break;
+
+        case 503:
+            header($_SERVER["SERVER_PROTOCOL"]." 503 Service Unavailable");
+            header("Retry-After: 7200");
+            break;
+
+        case 500:
+            header($_SERVER["SERVER_PROTOCOL"]." 500 Internal Server Error");
+            break;
+    }
 }
