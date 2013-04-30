@@ -152,14 +152,14 @@ $req = new Request();
 
 if($req->app == "stats") {
 
-	ini_set("zlib.output_compression","Off");
-	require "includes/app_stats.inc";
+    ini_set("zlib.output_compression","Off");
+    require "includes/app_stats.inc";
 
     app_stats($req);
 
 } else if ($req->app == "explore") {
 
-	require "includes/app_explore.inc";
+    require "includes/app_explore.inc";
     app_explore($req);
 
 } else {
