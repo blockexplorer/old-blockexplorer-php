@@ -136,8 +136,6 @@ function page_home($req)
     $smarty = new Smarty();
     $smarty->assign('rootpath', $req->path);
     $smarty->display('stats/home.tpl');
-
-    die();
 }
 
 function page_getdifficulty($req) 
@@ -170,7 +168,8 @@ function page_getblockhash($req)
         {
             senderror(404);
             echo "ERROR: block not found";
-            die();
+
+            return;
         }
     }
     else
@@ -218,7 +217,7 @@ function page_estimate($req)
     if($targettime == 0)
     {
         echo getdifficulty();
-        die();
+        return;
     }
     
     $oldblock = getblockbynumber($last);
@@ -243,7 +242,7 @@ function page_estimate($req)
     if($newtarget == "0")
     {
         echo getdifficulty();
-        die();
+        return;
     }
     $newtarget = bcdiv($newtarget, $targettime, 0);
     $newtarget = decodeCompact(encodeCompact($newtarget));
@@ -344,7 +343,7 @@ function page_changeparams($req)
         $precision = (integer)$_GET['precision'];
         if($precision > 9000) {
             echo "Precision level over nine thousand! (Don't kill my server.)";
-            die();
+            return;
         }
         $didsomething = 1;
     } else {
@@ -362,7 +361,7 @@ function page_changeparams($req)
         echo "This gives you the end total BC and the time required to reach it after changing various parameters. \nSubsidy - Starting subsidy (generation reward)\nInterval - Subsidy is halved after this many blocks\nPrecision - Decimals of precision\nLeave a parameter out to use the Bitcoin default:\n";
         echo "/q/changeparams?interval = 210000&precision = 8&subsidy = 50";
 
-        die();
+        return;
     }
 
     $totalbc = "0";
@@ -377,7 +376,7 @@ function page_changeparams($req)
             if($blockworth != 0)
             {
                 echo "Could not complete calculation in 10, 000, 000, 000 blocks. (This is an arbitrary limit of the calculator.)";
-                die();
+                return;
             }
         }
         else
@@ -624,14 +623,14 @@ function page_interval($req)
     {
         senderror(400);
         echo "ERROR: invalid block count.";
-        die();
+        return;
     }
     
     $cache = Cache::get("interval{$req->params[0]}");
     if($cache !== false)
     {
         echo (integer)$cache;
-        die();
+        return;
     }
     
     $avg = SQL::s("SELECT round((EXTRACT ('epoch' FROM avg(time.time)))::numeric, 0) AS avg 
@@ -658,7 +657,7 @@ function page_eta($req)
     {
         senderror(400);
         echo "ERROR: invalid block count.";
-        die();
+        return;
     }
     $req->params[0] = min(getblockcount()-getlastretarget(), $req->params[0]);
     $req->params[0] = max($req->params[0], 2);
@@ -690,7 +689,7 @@ function page_avgtxnumber($req)
     {
         senderror(400);
         echo "ERROR: invalid block count.";
-        die();
+        return;
     }
     $avg = SQL::s("SELECT round(avg(a.count), 3) AS avg 
                    FROM (SELECT block, count(*) AS count 
@@ -712,7 +711,7 @@ function page_getreceivedbyaddress($req)
     else
     {
         echo "Returns total BTC received by an address. Sends are not taken into account.\nThe optional second parameter specifies the required number of confirmations for\ntransactions comprising the balance.\n/q/getreceivedbyaddress/address[/minconf]";
-        die();
+        return;
     }
     
     $minconf = 1;
@@ -723,13 +722,13 @@ function page_getreceivedbyaddress($req)
         {
             senderror(400);
             echo "ERROR: you must use an integer above 0 for minconf";
-            die();
+            return;
         }
         if($req->params[1] == 0) // I don't think this can happen currently
         {
             senderror(400); 
             echo "ERROR: this page never counts 0-confirmation transactions";
-            die();
+            return;
         }
         $minconf = (int)$req->params[1];
     }
@@ -767,7 +766,7 @@ function page_getsentbyaddress($req)
     else
     {
         echo "Returns total BTC sent by an address. Using this data is almost always a very\nbad idea, as the amount of BTC sent by an address is usually very different\nfrom the amount of BTC sent by the person owning the address.\n/q/getsentbyaddress/address";
-        die();
+        return;
     }
     
     if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
@@ -799,7 +798,7 @@ function page_addressbalance($req)
     else
     {
         echo "This is the same as subtracting /q/getsentbyaddress from /q/getreceivedbyaddress.\nUsing this data is almost always a very bad idea, as the amount of BTC sent\nby an address is usually very different from the amount of BTC sent by the\nperson owning the address.\n/q/addressbalance/address";
-        die();
+        return;
     }
     
     if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
@@ -836,7 +835,7 @@ function page_addressfirstseen($req)
     } else {
 
         echo "Returns the block time at which an address was first seen.\n/q/addressfirstseen/address";
-        die();
+        return;
     }
 
     if(isset($req->params[0]) && 
@@ -869,7 +868,7 @@ function page_nethash($req)
     {
         senderror(400);
         echo "ERROR: invalid stepping (must be 5-10, 000)";
-        die();
+        return;
     }
     echo "Each row contains some info about the single block at height blockNumber:
 - Time when the block was created (UTC)
@@ -916,7 +915,7 @@ this time, calculated from the average interval and average target.\n";
         {
             senderror(500);
             echo "ERROR: divide by zero";
-            die();
+            return;
         }
         
         // average targets to get accurate estimates
@@ -949,7 +948,7 @@ this time, calculated from the average interval and average target.\n";
         $target = decodeCompact($onerow['bits']);
         if(empty($target) || $target == 0)
         {
-            die();
+            return;
         }
         $hashesToWin = bcdiv("1", bcdiv($target, "115792089237316195423570985008687907853269984665640564039457584007913129639935", 55), 0);
         $intervalSinceLast = $onerow['avg'];
@@ -957,7 +956,7 @@ this time, calculated from the average interval and average target.\n";
         echo "$number, $time, $target, $hashesToWin, $intervalSinceLast, $nethash\n";
         
     }*/
-    die();
+    return;
 }
 
 function page_mytransactions($req)
@@ -1003,7 +1002,7 @@ the error. An appropriate HTTP response code will also be sent. A response with 
 must also be considered to be an error.
 
 /q/mytransactions/address1.address2/blockHash";
-        die();
+        return;
     }
     if(!empty($req->params[1]))
     {
@@ -1012,7 +1011,7 @@ must also be considered to be an error.
         {
             echo "ERROR: block limit is in invalid format";
             senderror(400);
-            die();
+            return;
         }
         $blocklimit = (int)SQL::s("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", array($req->params[1]));
         if(!$blocklimit)
@@ -1030,7 +1029,7 @@ must also be considered to be an error.
         {
             echo "ERROR: One or more addresses are invalid";
             senderror(400);
-            die();
+            return;
         }
         $address = "decode('".addressToHash160($address)."', 'hex')";
     }
