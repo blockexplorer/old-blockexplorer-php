@@ -530,7 +530,7 @@ function page_eta($params)
                                                                           FROM blocks)
                                       ) AS time;", 
 
-                  max(min(getblockcount( - getlastretarget(), $lastblocks), 2)));
+                  max(min(getblockcount() - getlastretarget(), $lastblocks), 2));
 
     $blocksleft = (getlastretarget() + 2016) - getblockcount();
     if($blocksleft == 0)
