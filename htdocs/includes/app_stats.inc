@@ -4,6 +4,7 @@ require_once 'encode.inc';
 require_once 'rpc.inc';
 require_once 'sql.inc';
 require_once 'cache.inc';
+require_once 'utils.inc';
 
 function getblockcount()
 {
@@ -64,6 +65,9 @@ function getlastretarget()
 	return ($blockcount-($blockcount%2016))-1;
 }
 
+class Error extends Exception { } 
+class BadRequest extends Error { }
+
 function app_stats($req) 
 {
     $config = $req->testnet ? "TestnetConfig" : "Config";
@@ -72,101 +76,103 @@ function app_stats($req)
     RPC::init($config::$rpc);
     SQL::init($config::$dbname);
 
+    if($req->page == "home") 
+        return page_home($req->path);
+
     if($req->page != "mytransactions")
         header("Cache-control: no-cache");
 
-    if($req->page != "home") 
-        header("Content-type: text/plain");
-
+    header("Content-type: text/plain");
     $callback = "page_" . $req->page;
 
-    if(function_exists($callback)) 
-        return call_user_func($callback, $req);
+    $handle_error = function($code, $msg) {
+        senderror($code);
+        echo "ERROR: $msg";
+    };
 
-    senderror(404);
-    echo "ERROR: invalid query";
+    if(function_exists($callback)) 
+        try {
+            return call_user_func($callback, $req->params);
+        } catch (BadRequest $e) {
+            return $handle_error(400, $e->getMessage());
+        } catch (Error $e) {
+            return $handle_error($e->getCode(), $e->getMessage());
+        }
+
+    $handle_error(404, "invalid query");
 }
 
-function page_home($req) 
+function page_home($path) 
 {
     require_once('Smarty.class.php');
 
     $smarty = new Smarty();
-    $smarty->assign('rootpath', $req->path);
+    $smarty->assign('rootpath', $path);
     $smarty->display('stats/home.tpl');
 }
 
-function page_getdifficulty($req) 
+function page_getdifficulty($params) 
 {
     echo getdifficulty();
 }
 
-function page_getblockcount($req) 
+function page_getblockcount($params) 
 {
     echo getblockcount();
 }
 
 
-function page_latesthash($req) 
+function page_latesthash($params) 
 {
     $block = getblockbynumber(getblockcount());
     echo strtoupper($block->hash);
 }
 
-function page_getblockhash($req) 
+function page_getblockhash($params) 
 {
-    if(isset($req->params[0]) && preg_match('/^[0-9]{1,9}$/', $req->params[0])) {
-        $block = (int)$req->params[0];
-        if($block <= (int)getblockcount())
-        {
-            $block = getblockbynumber((int)$req->params[0]);
-            echo strtoupper($block->hash);
-        }
-        else
-        {
-            senderror(404);
-            echo "ERROR: block not found";
-
-            return;
-        }
-    }
-    else
-    {
+    if(!isset($params[0])) {
         echo "Returns the hash of a block at a given height.\n\n/q/getblockhash/hash";
+        return;
     }
+
+    $block = @(int)$params[0];
+    if(!$block || $block > (int)getblockcount())
+        throw new Error("block not found", 404);
+
+    $block = getblockbynumber((int)$params[0]);
+    echo strtoupper($block->hash);
 }
 
-function page_hextarget($req) 
+function page_hextarget($params) 
 {
     $target = encodeHex(getdecimaltarget());
     while(strlen($target)<64)
-    {
         $target = "0".$target;
-    }
+
     echo $target;
 }
 
-function page_decimaltarget($req)
+function page_decimaltarget($params)
 {
     echo getdecimaltarget();
 }
 
-function page_probability($req)
+function page_probability($params)
 {
     echo getprobability();
 }
 
-function page_hashestowin($req)
+function page_hashestowin($params)
 {
     echo bcdiv("1", getprobability(), 0);
 }
 
-function page_nextretarget($req)
+function page_nextretarget($params)
 {
     echo getlastretarget()+2016;
 }
 
-function page_estimate($req)
+function page_estimate($params)
 {
     $currentcount = getblockcount(); // last one with the old difficulty
     $last = getlastretarget()+1; // first one with the "new" difficulty
@@ -208,20 +214,16 @@ function page_estimate($req)
     echo bcdiv("26959535291011309493156476344723991336010898738574164086137773096960", $newtarget, 8);
 }
 
-function page_bcperblock($req) 
+function page_bcperblock($params) 
 {
-    if(isset($req->params[0]) && preg_match('/^[0-9]+$/', $req->params[0]))
-    {
-        $blockcount = (string)$req->params[0];
+    if(isset($params[0])) {
+
+        $blockcount = (string)$params[0];
         if($blockcount>6929999)
-        {
             $blockcount = "6930000";
-        }
-    }
-    else
-    {
+
+    } else
         $blockcount = getblockcount();
-    }
 
     $blockworth = "50";
     // for genesis block
@@ -248,20 +250,18 @@ function page_bcperblock($req)
     echo $blockworth;
 }
 
-function page_totalbc($req)
+function page_totalbc($params)
 {
-    if(isset($req->params[0]) && preg_match('/^[0-9]+$/', $req->params[0]))
-    {
-        $blockcount = (string)$req->params[0];
+    if(isset($params[0])) {
+
+        $blockcount = (string)$params[0];
         if($blockcount>6929999)
-        {
             $blockcount = "6930000";
-        }
-    }
-    else
-    {
+
+    } else
         $blockcount = getblockcount();
-    }
+
+
     $blockworth = "50";
     // for genesis block
     $totalbc = "50";
@@ -285,7 +285,7 @@ function page_totalbc($req)
     echo $totalbc;
 }
 
-function page_changeparams($req)
+function page_changeparams($params)
 {
     $blockcount = "10000000000";
     $origblockcount = $blockcount;
@@ -350,20 +350,15 @@ function page_changeparams($req)
     echo "Took ".$realchange." blocks (".bcdiv($realchange, "52560", 3)." years).";
 }
 
-function page_addresstohash($req) 
+function page_addresstohash($params) 
 {
-    if(isset($req->params[0]))
+    if(isset($params[0]))
     {
-        $address = trim($req->params[0]);
-        if(preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) && strlen($address)<300)
-        {
-            echo addressToHash160($address);
-        }
-        else
-        {
-            senderror(400);
-            echo "ERROR: the input is not base58 (or is too large).";
-        }
+        $address = trim($params[0]);
+        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address) > 300)
+            throw new BadRequest("the input is not base58 (or is too large).");
+
+        echo addressToHash160($address);
     }
     else
     {
@@ -371,76 +366,67 @@ function page_addresstohash($req)
     }
 }
 
-function page_hashtoaddress($req)
+function page_hashtoaddress($params)
 {
+    if(!isset($params[0])) {
+        echo "Converts a Bitcoin hash160 (in hex) to a valid BC address.\n/q/hashtoaddress/hexHash[/address_version]";
+        return;
+    }
+
     $address_version = Address::$version;
 
-    if(isset($req->params[1]))
-    {
-        $address_version = strtoupper(remove0x(trim((string)$req->params[1])));
+    if(isset($params[1])) {
+        $address_version = strtoupper(remove0x(trim((string)$params[1])));
         if(strlen($address_version) != 2 || !preg_match('/^[0-9A-F]+$/', $address_version))
-        {
-            echo "ERROR: address_version is a two-character hexadecimal byte. Like 1F or 03. Using default.\n";
-        }
+            throw new BadRequest("address_version is a two-character hexadecimal byte. Like 1F or 03");
     }
-    if(isset($req->params[0]))
-    {
-        $hash160 = strtoupper(remove0x(trim($req->params[0])));
-        if(preg_match('/^[0-9A-F]+$/', $hash160) && strlen($hash160)<400)
-        {
-            if(strlen($hash160)%2 == 0)
-            {
-                echo Address::hash160ToAddress($hash160, $address_version);
-            }
-            else
-            {
-                senderror(400);
-                echo "ERROR: it doesn't make sense to have an uneven number of hex characters.
-(Perhaps you can add or remove some leading zeros.)";
-            }
-        }
-        else
-        {
-            senderror(400);
-            echo "ERROR: the input is not hex (or is too large).";
-        }
-    }
-    else
-    {
-        echo "Converts a Bitcoin hash160 (in hex) to a valid BC address.\n/q/hashtoaddress/hexHash[/address_version]";
-    }
+
+    $hash160 = strtoupper(remove0x(trim($params[0])));
+    if(!preg_match('/^[0-9A-F]+$/', $hash160) || strlen($hash160) > 400)
+        throw new BadRequest("the input is not hex (or is too large).");
+
+    if(strlen($hash160)%2 != 0)
+        throw new BadRequest("it doesn't make sense to have an uneven number of hex characters. (Perhaps you can add or remove some leading zeros.)");
+
+    echo Address::hash160ToAddress($hash160, $address_version);
 }
 
 
-function page_checkaddress($req)
+function page_checkaddress($params)
 {
-    if(isset($req->params[0]))
+    if(!isset($params[0])) {
+        echo "Returns 00 if the address is valid, something else otherwise. Note that it
+is impossible to determine whether someone actually *owns* the address. Someone
+could easily give 20 random bytes to /q/hashtoaddress and get a valid address.
+X5 - Address not base58
+SZ - Address not the correct size
+CK - Failed hash check
+Anything else - the encoded AddressVersion (always 00 in valid addresses)
+
+/q/checkaddress/address";
+        return;
+    }
+
+    $address = trim($params[0]);
+    if(preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address))
     {
-        $address = trim($req->params[0]);
-        if(preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address))
+        if(strlen($address)<300)
         {
-            if(strlen($address)<300)
+            $address = decodeBase58($address);
+            if(strlen($address) == 50)
             {
-                $address = decodeBase58($address);
-                if(strlen($address) == 50)
+                $version = substr($address, 0, 2);
+                $check = substr($address, 0, strlen($address)-8);
+                $check = pack("H*" , $check);
+                $check = strtoupper(hash("sha256", hash("sha256", $check, true)));
+                $check = substr($check, 0, 8);
+                if($check == substr($address, strlen($address)-8))
                 {
-                    $version = substr($address, 0, 2);
-                    $check = substr($address, 0, strlen($address)-8);
-                    $check = pack("H*" , $check);
-                    $check = strtoupper(hash("sha256", hash("sha256", $check, true)));
-                    $check = substr($check, 0, 8);
-                    if($check == substr($address, strlen($address)-8))
-                    {
-                        echo $version;
-                    }
-                    else
-                    {
-                        echo "CK";
-                    }
+                    echo $version;
                 }
                 else
                 {
-                    echo "SZ";
+                    echo "CK";
                 }
             }
             else
@@ -450,143 +436,103 @@ function page_checkaddress($req)
         }
         else
         {
-            echo "X5";
+            echo "SZ";
         }
     }
     else
     {
-    echo "Returns 00 if the address is valid, something else otherwise. Note that it
-is impossible to determine whether someone actually *owns* the address. Someone
-could easily give 20 random bytes to /q/hashtoaddress and get a valid address.
-X5 - Address not base58
-SZ - Address not the correct size
-CK - Failed hash check
-Anything else - the encoded AddressVersion (always 00 in valid addresses)
-
-/q/checkaddress/address";
-
+        echo "X5";
     }
 }
 
-
-function page_hashpubkey($req)
+function page_hashpubkey($params)
 {
-    if(isset($req->params[0]))
-    {
-        $pubkey = strtoupper(remove0x(trim($req->params[0])));
-        if(preg_match('/^[0-9A-F]+$/', $pubkey) && strlen($pubkey)<300)
-        {
-            echo hash160($pubkey);
-        }
-        else
-        {
-            senderror(400);
-            echo "ERROR: the input is not hex (or is too large).";
-        }
-    }
-    else
-    {
+    if(!isset($params[0])) {
         echo "Generates a hash160 from a Bitcoin public key. In the current implementation,
 public keys are either the first 65 bytes (130 hex characters) of a scriptPubKey
 or the last 65 bytes of a scriptSig, depending on the type of transaction. They
 always seem to start with 04 (this must be included).
 
 /q/hashpubkey/hexPubKey";
-    }
-}
-
-
-function page_avgtxsize($req)
-{
-    if(!isset($req->params[0]))
-    {
-        $req->params[0] = 1000;
-    }
-    $req->params[0] = (int)$req->params[0];
-    if($req->params[0]>0)
-    {
-        $avg = SQL::s("SELECT round(avg(transactions.size), 0) 
-                       FROM transactions JOIN blocks ON 
-                            (transactions.block = blocks.hash) 
-                       WHERE blocks.number > (SELECT max(number) 
-                       FROM blocks)-$1;", array($req->params[0]));
-        echo $avg;
-    }
-    else
-    {
-        senderror(400);
-        echo "ERROR: the first parameter is the number of blocks to look back through.";
-    }
-}
-
-function page_avgtxvalue($req)
-{
-    if(!isset($req->params[0]))
-    {
-        $req->params[0] = 1000;
-    }
-    $req->params[0] = (int)$req->params[0];
-    if($req->params[0]>0)
-    {
-        $avg = SQL::s("SELECT coalesce(round(avg(sum), 8), '0') 
-                       FROM (SELECT sum(inputs.value), inputs.tx AS avg 
-                             FROM inputs JOIN blocks ON 
-                                  (inputs.block = blocks.hash) 
-
-                             WHERE blocks.number > (SELECT max(number) FROM blocks)-$1 AND
-                                   inputs.type <> 'Generation' 
-                             GROUP BY inputs.tx) AS a;", 
-
-                       array($req->params[0]));
-        echo $avg;
-    }
-    else
-    {
-        senderror(400);
-        echo "ERROR: the first parameter is the number of blocks to look back through.";
-    }
-}
-
-function page_avgblocksize($req)
-{
-    if(!isset($req->params[0]))
-    {
-        $req->params[0] = 1000;
-    }
-    $req->params[0] = (int)$req->params[0];
-    if($req->params[0]>0)
-    {
-        $avg = SQL::s("SELECT round(avg(size), 0) AS avg 
-                       FROM blocks 
-                       WHERE blocks.number > (SELECT max(number) 
-                                              FROM blocks) - $1;", array($req->params[0]));
-        echo $avg;
-    }
-    else
-    {
-        senderror(400);
-        echo "ERROR: the first parameter is the number of blocks to look back through.";
-    }
-}
-
-function page_interval($req)
-{
-    if(!isset($req->params[0]))
-    {
-        // default lookback
-        $req->params[0] = 1000;
-    }
-    $req->params[0] = (int)$req->params[0];
-    if($req->params[0]<2)
-    {
-        senderror(400);
-        echo "ERROR: invalid block count.";
         return;
     }
+
+    $pubkey = strtoupper(remove0x(trim($params[0])));
+
+    if(!preg_match('/^[0-9A-F]+$/', $pubkey) || strlen($pubkey) > 300)
+        throw new BadRequest("the input is not hex (or is too large).");
+
+    echo hash160($pubkey);
+}
+
+
+function page_avgtxsize($params)
+{
+    if(!isset($params[0]))
+        $params[0] = 1000;
+
+    $lastblocks = (int)$params[0];
+
+    if($lastblocks <= 0)
+        throw new BadRequest("the first parameter is the number of blocks to look back through.");
+
+    $avg = SQL::s("SELECT round(avg(transactions.size), 0) 
+                   FROM transactions JOIN blocks ON 
+                        (transactions.block = blocks.hash) 
+                   WHERE blocks.number > (SELECT max(number) 
+                   FROM blocks)-$1;", array($lastblocks));
+    echo $avg;
+}
+
+function page_avgtxvalue($params)
+{
+    if(!isset($params[0]))
+        $params[0] = 1000;
+
+    $lastblocks = (int)$params[0];
+    if($lastblocks <= 0)
+        throw new BadRequest("the first parameter is the number of blocks to look back through.");
+
+    $avg = SQL::s("SELECT coalesce(round(avg(sum), 8), '0') 
+                   FROM (SELECT sum(inputs.value), inputs.tx AS avg 
+                         FROM inputs JOIN blocks ON 
+                              (inputs.block = blocks.hash) 
+
+                         WHERE blocks.number > (SELECT max(number) FROM blocks)-$1 AND
+                               inputs.type <> 'Generation' 
+                         GROUP BY inputs.tx) AS a;", 
+
+                   array($lastblocks));
+    echo $avg;
+}
+
+function page_avgblocksize($params)
+{
+    if(!isset($params[0]))
+        $params[0] = 1000;
+
+    $lastblocks = (int)$params[0];
+
+    if($lastblocks <= 0)
+        throw new BadRequest("the first parameter is the number of blocks to look back through.");
+
+    $avg = SQL::s("SELECT round(avg(size), 0) AS avg 
+                   FROM blocks 
+                   WHERE blocks.number > (SELECT max(number) 
+                                          FROM blocks) - $1;", array($lastblocks));
+    echo $avg;
+}
+
+function page_interval($params)
+{
+    if(!isset($params[0]))
+        $params[0] = 1000;
+
+    $lastblocks = (int)$params[0];
+    if($lastblocks < 2)
+        throw new BadRequest("invalid block count");
     
-    $cache = Cache::get("interval{$req->params[0]}");
-    if($cache !== false)
-    {
+    if($cache = Cache::get("interval{$lastblocks}")) {
         echo (integer)$cache;
         return;
     }
@@ -597,237 +543,165 @@ function page_interval($req)
                          FROM blocks 
                          WHERE blocks.number > (SELECT max(number) - $1 FROM blocks)) AS time;", 
 
-                   array($req->params[0]));
+                   array($lastblocks));
 
-    Cache::put("interval{$req->params[0]}", $avg, 30);
+    Cache::put("interval{$lastblocks}", $avg, 30);
     echo $avg;
 }
 
-function page_eta($req)
+function page_eta($params)
 {
-    if(!isset($req->params[0]))
-    {
-        // default lookback
-        $req->params[0] = 1000;
-    }
-    $req->params[0] = (int)$req->params[0];
-    if($req->params[0]<2)
-    {
-        senderror(400);
-        echo "ERROR: invalid block count.";
-        return;
-    }
-    $req->params[0] = min(getblockcount()-getlastretarget(), $req->params[0]);
-    $req->params[0] = max($req->params[0], 2);
+    if(!isset($params[0]))
+        $params[0] = 1000;
+
+    $lastblocks = (int)$params[0];
+    if($lastblocks < 2)
+        throw new BadRequest("invalid block count");
+
     $avg = SQL::s("SELECT round((EXTRACT ('epoch' FROM avg(time.time)))::numeric, 0) AS avg    
                                  FROM (SELECT time-lag(time, 1) OVER (ORDER BY time) AS time 
                                        FROM blocks WHERE blocks.number > (SELECT max(number)-$1 
                                                                           FROM blocks)
                                       ) AS time;", 
 
-                  array($req->params[0]));
+                  array(max(min(getblockcount() - getlastretarget(), $lastblocks), 2)));
 
-    $blocksleft = (getlastretarget()+2016)-getblockcount();
+    $blocksleft = (getlastretarget() + 2016) - getblockcount();
     if($blocksleft == 0)
-    {
         $blocksleft = 2016;
-    }
+
     echo $blocksleft * $avg;	
 }
 
-function page_avgtxnumber($req)
+function page_avgtxnumber($params)
 {
-    if(!isset($req->params[0]))
-    {
-        // default lookback
-        $req->params[0] = 1000;
-    }
-    $req->params[0] = (int)$req->params[0];
-    if($req->params[0]<1)
-    {
-        senderror(400);
-        echo "ERROR: invalid block count.";
-        return;
-    }
+    if(!isset($params[0]))
+        $params[0] = 1000;
+
+    $lastblocks = (int)$params[0];
+    if($lastblocks < 1)
+        throw new BadRequest("invalid block count");
+
     $avg = SQL::s("SELECT round(avg(a.count), 3) AS avg 
                    FROM (SELECT block, count(*) AS count 
                          FROM transactions GROUP BY block) AS a JOIN blocks ON 
                               (blocks.hash = a.block) 
                          WHERE blocks.number > (SELECT max(number) - $1 
                                                 FROM blocks);",
-                  array($req->params[0]));
+                  array($lastblocks));
     echo $avg;
 }
 
-
-function page_getreceivedbyaddress($req)
+function page_getreceivedbyaddress($params)
 {
-    if(isset($req->params[0]))
-    {
-        $req->params[0] = trim($req->params[0]);
-    }
-    else
-    {
+    if(!isset($params[0])) {
         echo "Returns total BTC received by an address. Sends are not taken into account.\nThe optional second parameter specifies the required number of confirmations for\ntransactions comprising the balance.\n/q/getreceivedbyaddress/address[/minconf]";
+
         return;
     }
     
-    $minconf = 1;
-    if(isset($req->params[1]))
-    {
-        $req->params[1] = (int)$req->params[1];
-        if(empty($req->params[1]) || ! is_int($req->params[1]) || $req->params[1]<0)
-        {
-            senderror(400);
-            echo "ERROR: you must use an integer above 0 for minconf";
-            return;
-        }
-        if($req->params[1] == 0) // I don't think this can happen currently
-        {
-            senderror(400); 
-            echo "ERROR: this page never counts 0-confirmation transactions";
-            return;
-        }
-        $minconf = (int)$req->params[1];
-    }
-    
-    if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
-    {
-        $hash160 = addressToHash160($req->params[0]);
-        $sum = SQL::s("SELECT sum(value) AS sum 
-                       FROM outputs 
-                       WHERE hash160 = decode($1, 'hex') AND 
-                             block NOT IN (SELECT hash 
-                                           FROM blocks ORDER BY number DESC LIMIT $2);", 
+    $minconf = (int)get($params, 1, 1);
+    if($minconf <= 0)
+        throw new BadRequest("you must use an integer above 0 for minconf");
 
-                       array($hash160, $minconf-1));
+    $address = $params[0];
+    if(!Address::checkAddress($address))
+        throw new BadRequest("invalid address");
 
-        if(!$sum)
-            $sum = 0;
+    $hash160 = addressToHash160($address);
+    $sum = SQL::s("SELECT sum(value) AS sum 
+                   FROM outputs 
+                   WHERE hash160 = decode($1, 'hex') AND 
+                         block NOT IN (SELECT hash 
+                                       FROM blocks ORDER BY number DESC LIMIT $2);", 
 
-        echo $sum;
-        
-    }
-    else
-    {
-        senderror(400);
-        echo "ERROR: invalid address";
-    }
+                   array($hash160, $minconf - 1));
+
+    if(!$sum)
+        $sum = 0;
+
+    echo $sum;
 }
 
-function page_getsentbyaddress($req)
+function page_getsentbyaddress($params)
 {
-    if(isset($req->params[0]))
-    {
-        $req->params[0] = trim($req->params[0]);
-    }
-    else
-    {
+    if(!isset($params[0])) {
         echo "Returns total BTC sent by an address. Using this data is almost always a very\nbad idea, as the amount of BTC sent by an address is usually very different\nfrom the amount of BTC sent by the person owning the address.\n/q/getsentbyaddress/address";
         return;
     }
     
-    if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
-    {
-        $hash160 = addressToHash160($req->params[0]);
-        $sum = SQL::s("SELECT sum(value) AS sum 
-                       FROM inputs 
-                       WHERE hash160 = decode($1, 'hex');", array($hash160));
+    $address = $params[0];
 
-        if(!$sum)
-            $sum = 0;
+    if(!Address::checkAddress($address)) 
+        throw new BadRequest("invalid address");
 
-        echo $sum;
-        
-    }
-    else
-    {
-        senderror(400);
-        echo "ERROR: invalid address";
-    }
+    $hash160 = addressToHash160($params[0]);
+    $sum = SQL::s("SELECT sum(value) AS sum 
+                   FROM inputs 
+                   WHERE hash160 = decode($1, 'hex');", array($hash160));
+
+    if(!$sum)
+        $sum = 0;
+
+    echo $sum;
 }
 
-function page_addressbalance($req)
+function page_addressbalance($params)
 {
-    if(isset($req->params[0]))
-    {
-        $req->params[0] = trim($req->params[0]);
-    }
-    else
-    {
+    if(!isset($params[0])) {
         echo "This is the same as subtracting /q/getsentbyaddress from /q/getreceivedbyaddress.\nUsing this data is almost always a very bad idea, as the amount of BTC sent\nby an address is usually very different from the amount of BTC sent by the\nperson owning the address.\n/q/addressbalance/address";
         return;
     }
     
-    if(isset($req->params[0]) && strlen($req->params[0])>24 && strlen($req->params[0])<36 && Address::checkAddress($req->params[0]))
-    {
-        $hash160 = addressToHash160($req->params[0]);
-        $sent = SQL::s("SELECT sum(value) 
-                        FROM inputs 
+    $address = $params[0];
+
+    if(!Address::checkAddress($address))
+        throw new BadRequest("invalid address");
+
+    $hash160 = addressToHash160($params[0]);
+    $sent = SQL::s("SELECT sum(value) 
+                    FROM inputs 
+                    WHERE hash160 = decode($1, 'hex');", array($hash160));
+    if(!$sent)
+        $sent = 0;
+    
+    $received = SQL::s("SELECT sum(value) 
+                        FROM outputs 
                         WHERE hash160 = decode($1, 'hex');", array($hash160));
-        if(!$sent)
-            $sent = 0;
-        
-        $received = SQL::s("SELECT sum(value) 
-                            FROM outputs 
-                            WHERE hash160 = decode($1, 'hex');", array($hash160));
 
-        if(!$received)
-            $received = 0;
+    if(!$received)
+        $received = 0;
 
-        echo $received-$sent;
-    }
-    else
-    {
-        senderror(400);
-        echo "ERROR: invalid address";
-    }
+    echo $received - $sent;
 }
 
-function page_addressfirstseen($req)
+function page_addressfirstseen($params)
 {
-    if(isset($req->params[0])) {
-
-        $req->params[0] = trim($req->params[0]);
-
-    } else {
-
+    if(!isset($params[0])) {
         echo "Returns the block time at which an address was first seen.\n/q/addressfirstseen/address";
         return;
     }
 
-    if(isset($req->params[0]) && 
-       strlen($req->params[0]) > 24 && 
-       strlen($req->params[0]) < 36 && 
-       Address::checkAddress($req->params[0])) {
+    $address = $params[0];
+    if(!Address::checkAddress($address))
+        throw new BadRequest("invalid address");
 
-        $result = SQL::s("SELECT time AT TIME ZONE 'UTC'
-                          FROM keys JOIN blocks ON 
-                               (keys.firstseen = blocks.hash) 
-                          WHERE address = $1;", array($req->params[0]));
-        if(!$result)
-            $result = "Never seen";
+    $result = SQL::s("SELECT time AT TIME ZONE 'UTC'
+                      FROM keys JOIN blocks ON 
+                           (keys.firstseen = blocks.hash) 
+                      WHERE address = $1;", array($params[0]));
+    if(!$result)
+        $result = "Never seen";
 
-        echo $result;
-    } else {
-        senderror(400);
-        echo "ERROR: invalid address";
-    }
+    echo $result;
 }
 
-function page_nethash($req)
+function page_nethash($params)
 {
-    if(!isset($req->params[0]))
-    {
-        $req->params[0] = 144;
-    }
-    $req->params[0] = (int)$req->params[0];
-    if(empty($req->params[0]) || ! ($req->params[0]>4 && $req->params[0]<10001))
-    {
-        senderror(400);
-        echo "ERROR: invalid stepping (must be 5-10, 000)";
-        return;
-    }
+    $step = (int)get($params, 0, 144);
+    if(!$step || ! ($step >= 5 && $step <= 10000))
+        throw new BadRequest("invalid step (must be between 5 - 10000");
+
     echo "Each row contains some info about the single block at height blockNumber:
 - Time when the block was created (UTC)
 - Decimal target
@@ -859,12 +733,11 @@ this time, calculated from the average interval and average target.\n";
                                                         FROM blocks), $1) AS series(series) 
                        WHERE number = series+$1;", 
                        
-                       array($req->params[0]));
+                       array($step));
 
     $onerow = SQL::d($query);
     
-    while($onerow)
-    {
+    while($onerow) {
         $number = $onerow["number"];
         $time = $onerow["time"];
         $target = decodeCompact($onerow["bits"]);
@@ -891,38 +764,20 @@ this time, calculated from the average interval and average target.\n";
         $hashestowin = bcdiv("1", bcdiv($target, "115792089237316195423570985008687907853269984665640564039457584007913129639935", 55), 0);
         $avginterval = $onerow['avg'];
         $avghashestowin = bcdiv("1", bcdiv($avgtarget, "115792089237316195423570985008687907853269984665640564039457584007913129639935", 55), 0);
-        $nethash = bcdiv($avghashestowin, $avginterval, 0);
-        echo "$number, $time, $target, $avgtarget, $difficulty, $hashestowin, $avginterval, $nethash\n";
+        if($avginterval) {
+            $nethash = bcdiv($avghashestowin, $avginterval, 0);
+            echo "$number, $time, $target, $avgtarget, $difficulty, $hashestowin, $avginterval, $nethash\n";
+        }
         $onerow = SQL::d($query);
     }
-    
-    /*for($i = 0;$i<getblockcount();$i += 144)
-    {
-        $start = $i;
-        $stop = $start+144;
-        $onerow = SQL::a(SQL("SELECT bstat.number AS number, bstat.time AS time, bstat.bits AS bits, round((EXTRACT ('epoch' FROM bavg.time))::numeric, 0) AS avg FROM (SELECT avg(time.time)::interval AS time FROM (SELECT time-lag(time, 1) OVER (ORDER BY time) AS time FROM blocks WHERE blocks.number>$1 AND blocks.number<($2+1)) AS time) AS bavg, (SELECT number, EXTRACT ('epoch' FROM time) AS time, bits FROM blocks WHERE number = $2) AS bstat;", array($start, $stop)));
-        $number = $onerow['number'];
-        $time = $onerow['time'];
-        $target = decodeCompact($onerow['bits']);
-        if(empty($target) || $target == 0)
-        {
-            return;
-        }
-        $hashesToWin = bcdiv("1", bcdiv($target, "115792089237316195423570985008687907853269984665640564039457584007913129639935", 55), 0);
-        $intervalSinceLast = $onerow['avg'];
-        $nethash = bcdiv($hashesToWin, $intervalSinceLast, 0);
-        echo "$number, $time, $target, $hashesToWin, $intervalSinceLast, $nethash\n";
-        
-    }*/
-    return;
 }
 
-function page_mytransactions($req)
+function page_mytransactions($params)
 {
     // This RELIES on the fact that only address transactions will be sent/received
-    ini_set("zlib.output_compression", "On");
     
-    if(empty($req->params[0])) {
+    if(!isset($params[0])) {
+
         echo "Returns all transactions sent or received by the period-separated Bitcoin
 addresses in parameter 1. The optional parameter 2 contains a hexadecimal block
 hash: transactions in blocks up to and including this block will not be returned.
@@ -962,16 +817,17 @@ must also be considered to be an error.
 /q/mytransactions/address1.address2/blockHash";
         return;
     }
-    if(!empty($req->params[1]))
+
+    if(!empty($params[1]))
     {
-        $req->params[1] = remove0x(trim(strtolower($req->params[1])));
-        if(!preg_match("/[0-9a-f]{64}/", $req->params[1]))
+        $params[1] = remove0x(trim(strtolower($params[1])));
+        if(!preg_match("/[0-9a-f]{64}/", $params[1]))
         {
             echo "ERROR: block limit is in invalid format";
             senderror(400);
             return;
         }
-        $blocklimit = (int)SQL::s("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", array($req->params[1]));
+        $blocklimit = (int)SQL::s("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", array($params[1]));
         if(!$blocklimit)
             $blocklimit = 0;
     }
@@ -979,8 +835,9 @@ must also be considered to be an error.
     {
         $blocklimit = 0;
     }
+
     // gather addresses
-    $addresses = explode('.', trim($req->params[0]));
+    $addresses = explode('.', trim($params[0]));
     foreach($addresses as &$address)
     {
         if(!preg_match("/^[1-9A-HJ-NP-Za-km-z]{25,44}$/", $address) || ! Address::checkAddress($address))
@@ -993,17 +850,37 @@ must also be considered to be an error.
     }
     // this is safe because addresses were checked above
     $addresses = implode(", ", $addresses);
-    $sql = <<<EOF
-SELECT encode(blocks.hash, 'hex') AS block, encode(transactions.hash, 'hex') AS tx, blocks.number AS blocknum, blocks.time AT TIME ZONE 'UTC' AS time, transactions.id AS tid, transactions.raw AS rawtx
-FROM inputs JOIN transactions ON (inputs.tx = transactions.hash) JOIN blocks ON (inputs.block = blocks.hash)
-WHERE inputs.type = 'Address' AND blocks.number>$1 AND inputs.hash160 IN ($addresses)
-UNION
-SELECT encode(blocks.hash, 'hex') AS block, encode(transactions.hash, 'hex') AS tx, blocks.number AS blocknum, blocks.time AT TIME ZONE 'UTC' AS time, transactions.id AS tid, transactions.raw AS rawtx
-FROM outputs JOIN transactions ON (outputs.tx = transactions.hash) JOIN blocks ON (outputs.block = blocks.hash)
-WHERE outputs.type = 'Address' AND blocks.number>$1 AND outputs.hash160 IN ($addresses)
-ORDER BY tid;
-EOF;
-    $result = SQL($sql, array($blocklimit));
+    $result = SQL("SELECT encode(blocks.hash, 'hex') AS block, 
+                          encode(transactions.hash, 'hex') AS tx, 
+                          blocks.number AS blocknum, 
+                          blocks.time AT TIME ZONE 'UTC' AS time, 
+                          transactions.id AS tid, 
+                          transactions.raw AS rawtx
+
+                   FROM inputs JOIN transactions ON (inputs.tx = transactions.hash) 
+                               JOIN blocks ON (inputs.block = blocks.hash)
+
+                   WHERE inputs.type = 'Address' AND 
+                         blocks.number>$1 AND inputs.hash160 IN ($addresses)
+
+                   UNION 
+                   
+                   SELECT encode(blocks.hash, 'hex') AS block, 
+                          encode(transactions.hash, 'hex') AS tx, 
+                          blocks.number AS blocknum, 
+                          blocks.time AT TIME ZONE 'UTC' AS time, 
+                          transactions.id AS tid, 
+                          transactions.raw AS rawtx
+
+                   FROM outputs JOIN transactions ON (outputs.tx = transactions.hash) 
+                                JOIN blocks ON (outputs.block = blocks.hash)
+
+                   WHERE outputs.type = 'Address' AND 
+                         blocks.number>$1 AND 
+                         outputs.hash160 IN ($addresses) 
+                         
+                   ORDER BY tid;", array($blocklimit));
+
     $return = (object)array();
     $maxrow = SQL::count($result);
     $counter = 0;
