@@ -11,10 +11,14 @@ class SQL {
         if(!self::$_DB) 
             throw new SQLException("database not initialized");
 
-        if($params !== false)
+        if($params !== false) {
+            if(!is_array($params))
+                $params = array($params);
+
             $retval = pg_query_params(self::$_DB, $query, $params);
-        else
+        } else {
             $retval = pg_query(self::$_DB, $query);
+        }
 
         if(!$retval)
             throw new SQLException("pg_query: " . pg_last_error());

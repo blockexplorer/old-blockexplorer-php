@@ -180,7 +180,7 @@ function app_explore($req) {
         // block number
         if(preg_match("/^[0-9]+$/", $input))
         {
-            $hash = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($input));
+            $hash = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $input);
             if($hash) 
                 redirect("{$rootpath}block/$hash");
 
@@ -194,7 +194,7 @@ function app_explore($req) {
         // address
         if(strlen($input)<36 && !preg_match("/0/", $input))
         {
-            $exists = SQL::s("SELECT 1 FROM keys WHERE address = $1;", array($input));
+            $exists = SQL::s("SELECT 1 FROM keys WHERE address = $1;", $input);
             if($exists)
                 redirect("{$rootpath}address/$input");
         }
@@ -203,17 +203,17 @@ function app_explore($req) {
         $input = strtolower(remove0x($input));
 
         // block hash
-        $exists = SQL::s("SELECT 1 FROM blocks WHERE hash = decode($1, 'hex');", array($input));
+        $exists = SQL::s("SELECT 1 FROM blocks WHERE hash = decode($1, 'hex');", $input);
         if($exists)
             redirect("{$rootpath}block/$input");
 
         // tx hash
-        $exists = SQL::s("SELECT 1 FROM transactions WHERE hash = decode($1, 'hex');", array($input));
+        $exists = SQL::s("SELECT 1 FROM transactions WHERE hash = decode($1, 'hex');", $input);
         if($exists)
             redirect("{$rootpath}tx/$input");
 
         // hash160
-        $address = SQL::s("SELECT address FROM keys WHERE hash160 = decode($1, 'hex');", array($input));
+        $address = SQL::s("SELECT address FROM keys WHERE hash160 = decode($1, 'hex');", $input);
         if($address) 
             redirect("{$rootpath}address/$address");
 
@@ -234,7 +234,7 @@ function app_explore($req) {
     {
         if(preg_match("/^[0-9]{1,7}$/", $req->params[0]))
         {
-            $result = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", array($req->params[0]));
+            $result = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $req->params[0]);
             if($result)
                 redirect("{$rootpath}block/$result", 301);
         }
@@ -246,7 +246,7 @@ function app_explore($req) {
             $shortcut = decodeBase58($req->params[0]);
             $hash = SQL::s("SELECT encode(hash, 'hex') AS hash 
                             FROM t_shortlinks 
-                            WHERE shortcut = decode($1, 'hex');", array($shortcut));
+                            WHERE shortcut = decode($1, 'hex');", $shortcut);
             if($hash)
                 redirect("{$rootpath}tx/$hash", 301);
         }
@@ -261,7 +261,7 @@ function app_explore($req) {
                                FROM a_shortlinks JOIN keys ON 
                                     (keys.hash160 = a_shortlinks.hash160) 
 
-                               WHERE shortcut = decode($1, 'hex');", array($shortcut));
+                               WHERE shortcut = decode($1, 'hex');", $shortcut);
             if($address)
                 redirect("{$rootpath}address/$address", 301);
         }
@@ -280,7 +280,7 @@ function app_explore($req) {
         }
         $raw = SQL::s("SELECT raw 
                        FROM transactions 
-                       WHERE hash = decode($1, 'hex');", array($tx));
+                       WHERE hash = decode($1, 'hex');", $tx);
         if(!$raw) {
             senderror(404);
             echo "ERROR: Transaction does not exist.";
@@ -350,7 +350,7 @@ function app_explore($req) {
 
                                  FROM blocks 
 
-                                 WHERE hash = decode($1, 'hex');", array($block));
+                                 WHERE hash = decode($1, 'hex');", $block);
         if(!$result || is_null($result))
         {
             error("No such block", 404);
@@ -399,7 +399,7 @@ function app_explore($req) {
 
                       WHERE transactions.hash = decode($1, 'hex');", 
 
-                     array($hash));
+                     $hash);
 
         if(!$tx) {
             error("No such transaction", 404);
@@ -422,7 +422,7 @@ function app_explore($req) {
 
                         ORDER BY outputs.index;", 
 
-                       array($hash));
+                       $hash);
 
         $inputs = SQL("SELECT encode(inputs.prev, 'hex') AS prev, 
                               inputs.index AS index,
@@ -440,7 +440,7 @@ function app_explore($req) {
 
                        ORDER BY inputs.id;", 
 
-                       array($hash));
+                       $hash);
 
         $oneoutput = SQL::d($outputs);
         $oneinput = SQL::d($inputs);
@@ -481,7 +481,7 @@ function app_explore($req) {
         $keyinfo = SQL::d("SELECT encode(pubkey, 'hex') AS pubkey, 
                                   encode(firstseen, 'hex') AS firstseen 
                            FROM keys 
-                           WHERE hash160 = decode($1, 'hex');", array($hash160));
+                           WHERE hash160 = decode($1, 'hex');", $hash160);
 
         $pubkey = $keyinfo["pubkey"];
         if($pubkey === false || is_null($pubkey))
@@ -495,7 +495,7 @@ function app_explore($req) {
             $blockinfo = SQL::d("SELECT number, 
                                         time AT TIME ZONE 'UTC' AS time 
                                  FROM blocks 
-                                 WHERE hash = decode($1, 'hex');", array($firstseen));
+                                 WHERE hash = decode($1, 'hex');", $firstseen);
             $blocknum = $blockinfo["number"];
             $blocktime = $blockinfo["time"];
             $blockstring = "<a href=\"{$rootpath}block/$firstseen\">Block $blocknum</a> ($blocktime)";
@@ -540,7 +540,7 @@ function app_explore($req) {
                             
                       ORDER BY blocknum, type, tid, index;", 
                       
-                      array($hash160));
+                      $hash160);
 
         $txlimit = SQL::count($mytxs)-1;
         $txcounter = 0;
@@ -703,7 +703,7 @@ function app_explore($req) {
                       WHERE outputs.hash160 = decode($1, 'hex') 
                       ORDER BY outputs.id DESC LIMIT 20;", 
 
-                      array($hash160));
+                      $hash160);
 
         $onetx = SQL::a($query);
         if($onetx === false)

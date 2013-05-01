@@ -480,7 +480,7 @@ function page_avgtxsize($params)
                    FROM transactions JOIN blocks ON 
                         (transactions.block = blocks.hash) 
                    WHERE blocks.number > (SELECT max(number) 
-                   FROM blocks)-$1;", array($lastblocks));
+                   FROM blocks)-$1;", $lastblocks);
     echo $avg;
 }
 
@@ -502,7 +502,7 @@ function page_avgtxvalue($params)
                                inputs.type <> 'Generation' 
                          GROUP BY inputs.tx) AS a;", 
 
-                   array($lastblocks));
+                   $lastblocks);
     echo $avg;
 }
 
@@ -519,7 +519,7 @@ function page_avgblocksize($params)
     $avg = SQL::s("SELECT round(avg(size), 0) AS avg 
                    FROM blocks 
                    WHERE blocks.number > (SELECT max(number) 
-                                          FROM blocks) - $1;", array($lastblocks));
+                                          FROM blocks) - $1;", $lastblocks);
     echo $avg;
 }
 
@@ -543,7 +543,7 @@ function page_interval($params)
                          FROM blocks 
                          WHERE blocks.number > (SELECT max(number) - $1 FROM blocks)) AS time;", 
 
-                   array($lastblocks));
+                   $lastblocks);
 
     Cache::put("interval{$lastblocks}", $avg, 30);
     echo $avg;
@@ -564,7 +564,7 @@ function page_eta($params)
                                                                           FROM blocks)
                                       ) AS time;", 
 
-                  array(max(min(getblockcount() - getlastretarget(), $lastblocks), 2)));
+                  max(min(getblockcount( - getlastretarget(), $lastblocks), 2)));
 
     $blocksleft = (getlastretarget() + 2016) - getblockcount();
     if($blocksleft == 0)
@@ -588,7 +588,7 @@ function page_avgtxnumber($params)
                               (blocks.hash = a.block) 
                          WHERE blocks.number > (SELECT max(number) - $1 
                                                 FROM blocks);",
-                  array($lastblocks));
+                  $lastblocks);
     echo $avg;
 }
 
@@ -638,7 +638,7 @@ function page_getsentbyaddress($params)
     $hash160 = addressToHash160($params[0]);
     $sum = SQL::s("SELECT sum(value) AS sum 
                    FROM inputs 
-                   WHERE hash160 = decode($1, 'hex');", array($hash160));
+                   WHERE hash160 = decode($1, 'hex');", $hash160);
 
     if(!$sum)
         $sum = 0;
@@ -661,13 +661,13 @@ function page_addressbalance($params)
     $hash160 = addressToHash160($params[0]);
     $sent = SQL::s("SELECT sum(value) 
                     FROM inputs 
-                    WHERE hash160 = decode($1, 'hex');", array($hash160));
+                    WHERE hash160 = decode($1, 'hex');", $hash160);
     if(!$sent)
         $sent = 0;
     
     $received = SQL::s("SELECT sum(value) 
                         FROM outputs 
-                        WHERE hash160 = decode($1, 'hex');", array($hash160));
+                        WHERE hash160 = decode($1, 'hex');", $hash160);
 
     if(!$received)
         $received = 0;
@@ -689,7 +689,7 @@ function page_addressfirstseen($params)
     $result = SQL::s("SELECT time AT TIME ZONE 'UTC'
                       FROM keys JOIN blocks ON 
                            (keys.firstseen = blocks.hash) 
-                      WHERE address = $1;", array($params[0]));
+                      WHERE address = $1;", $params[0]);
     if(!$result)
         $result = "Never seen";
 
@@ -733,7 +733,7 @@ this time, calculated from the average interval and average target.\n";
                                                         FROM blocks), $1) AS series(series) 
                        WHERE number = series+$1;", 
                        
-                       array($step));
+                       $step);
 
     $onerow = SQL::d($query);
     
@@ -827,7 +827,7 @@ must also be considered to be an error.
             senderror(400);
             return;
         }
-        $blocklimit = (int)SQL::s("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", array($params[1]));
+        $blocklimit = (int)SQL::s("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", $params[1]);
         if(!$blocklimit)
             $blocklimit = 0;
     }
@@ -879,7 +879,7 @@ must also be considered to be an error.
                          blocks.number>$1 AND 
                          outputs.hash160 IN ($addresses) 
                          
-                   ORDER BY tid;", array($blocklimit));
+                   ORDER BY tid;", $blocklimit);
 
     $return = (object)array();
     $maxrow = SQL::count($result);
