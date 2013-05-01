@@ -18,7 +18,7 @@ hashes. The structure is like this (mostly the same as jgarzik's getblock):
 - previous output
 - hash of previous transaction
 - index of previous output
-- scriptsig (replaced by \"coinbase\" on generation inputs)
+- scriptsig (replaced by "coinbase" on generation inputs)
 - sequence (only when the sequence is non-default)
 - address (on address transactions only!)
 - outputs
