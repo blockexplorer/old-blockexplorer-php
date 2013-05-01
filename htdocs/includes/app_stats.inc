@@ -695,34 +695,22 @@ function page_nethash($params)
 function page_mytransactions($params)
 {
     // This RELIES on the fact that only address transactions will be sent/received
-    if(!empty($params[1]))
-    {
-        $params[1] = remove0x(trim(strtolower($params[1])));
-        if(!preg_match("/[0-9a-f]{64}/", $params[1]))
-        {
-            echo "ERROR: block limit is in invalid format";
-            senderror(400);
-            return;
-        }
-        $blocklimit = (int)SQL::s("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", $params[1]);
-        if(!$blocklimit)
-            $blocklimit = 0;
-    }
-    else
-    {
-        $blocklimit = 0;
+    $blocklimit = 0;
+    if(!empty($params[1])) {
+        $blockhash = remove0x(trim(strtolower($params[1])));
+        if(!preg_match("/[0-9a-f]{64}/", $blockhash))
+            throw new BadRequest("block limit is in invalid format");
+
+        $blocklimit = (int)SQL::s("SELECT number FROM blocks WHERE hash = decode($1, 'hex');", $blockhash);
     }
 
     // gather addresses
     $addresses = explode('.', trim($params[0]));
     foreach($addresses as &$address)
     {
-        if(!preg_match("/^[1-9A-HJ-NP-Za-km-z]{25,44}$/", $address) || ! Address::checkAddress($address))
-        {
-            echo "ERROR: One or more addresses are invalid";
-            senderror(400);
-            return;
-        }
+        if(!Address::checkAddress($address))
+            throw new BadRequest("One or more addresses are invalid");
+
         $address = "decode('".addressToHash160($address)."', 'hex')";
     }
     // this is safe because addresses were checked above

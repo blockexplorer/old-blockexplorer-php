@@ -19,7 +19,7 @@ class Address {
 
     static public function checkAddress($addr)
     {
-        if(strlen($addr) <= 24 || strlen($addr) > 36) 
+        if(!preg_match("/^[1-9A-HJ-NP-Za-km-z]{25,36}$/", $addr))
             return false;
 
         $addr = decodeBase58($addr);
