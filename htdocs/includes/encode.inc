@@ -19,6 +19,9 @@ class Address {
 
     static public function checkAddress($addr)
     {
+        if(strlen($addr) <= 24 || strlen($addr) > 36) 
+            return false;
+
         $addr = decodeBase58($addr);
         if(strlen($addr) != 50)
         {
