@@ -645,26 +645,32 @@ function page_nethash($params)
         throw new BadRequest("invalid step (must be between 5 - 10000");
 
     $smarty = new Smarty();
+    $smarty->setCaching(Smarty::CACHING_LIFETIME_SAVED);
+    $smarty->setCacheLifetime(600);
+
+    $tpl = 'stats/nethash.tpl';
+
+    if($smarty->isCached($tpl))
+        return $smarty->display($tpl);
 
     $query = SQL("SELECT number, 
-                              EXTRACT ('epoch' FROM time) AS time, 
-                              bits, 
-                              round(EXTRACT ('epoch' 
-                                              FROM (SELECT avg(a.time) 
-                                                    FROM (SELECT time-lag(time, 1) OVER (ORDER BY number) AS time 
-                                                          FROM blocks 
-                                                          WHERE number > series AND number < series+($1+1)) 
-                                                          
-                                                          AS a))::numeric, 0) 
-                                     AS avg 
-                       FROM blocks, generate_series(0, (SELECT max(number) 
-                                                        FROM blocks), $1) AS series(series) 
-                       WHERE number = series+$1;", 
-                       
-                       $step);
+                         EXTRACT ('epoch' FROM time) AS time, 
+                         bits, 
+                         round(EXTRACT ('epoch' 
+                                         FROM (SELECT avg(a.time) 
+                                               FROM (SELECT time-lag(time, 1) OVER (ORDER BY number) AS time 
+                                                     FROM blocks 
+                                                     WHERE number > series AND number < series+($1+1)) 
+                                                     
+                                                     AS a))::numeric, 0) 
+                                AS avg 
+                  FROM blocks, generate_series(0, (SELECT max(number) 
+                                                   FROM blocks), $1) AS series(series) 
+                  WHERE number = series+$1;", 
+                  
+                  $step);
 
     $rows = array();
-
     while($onerow = SQL::d($query)) {
 
         $number = $onerow["number"];
@@ -688,6 +694,7 @@ function page_nethash($params)
         $nethash = bcdiv($avghashestowin, $avginterval, 0);
         $rows[] = array($number, $time, $target, $avgtarget, $difficulty, $hashestowin, $avginterval, $nethash);
     }
+
     $smarty->assign('rows', $rows);
     $smarty->display('stats/nethash.tpl');
 }
