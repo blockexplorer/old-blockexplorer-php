@@ -5,6 +5,7 @@ require_once 'rpc.inc';
 require_once 'sql.inc';
 require_once 'cache.inc';
 require_once 'utils.inc';
+require_once 'Smarty.class.php' ;
 
 function getblockcount()
 {
@@ -90,7 +91,16 @@ function app_stats($req)
         echo "ERROR: $msg";
     };
 
-    if(function_exists($callback)) 
+    if(function_exists($callback)) {
+
+        if(!isset($req->params[0])) {
+            $smarty = new Smarty();
+            $tpl = 'stats/usage/' . $req-> page . '.tpl';
+
+            if($smarty->templateExists($tpl))
+                return $smarty->display($tpl);
+        }
+        
         try {
             return call_user_func($callback, $req->params);
         } catch (BadRequest $e) {
@@ -98,14 +108,13 @@ function app_stats($req)
         } catch (Error $e) {
             return $handle_error($e->getCode(), $e->getMessage());
         }
+    }
 
     $handle_error(404, "invalid query");
 }
 
 function page_home($path) 
 {
-    require_once('Smarty.class.php');
-
     $smarty = new Smarty();
     $smarty->assign('rootpath', $path);
     $smarty->display('stats/home.tpl');
@@ -130,11 +139,6 @@ function page_latesthash($params)
 
 function page_getblockhash($params) 
 {
-    if(!isset($params[0])) {
-        echo "Returns the hash of a block at a given height.\n\n/q/getblockhash/hash";
-        return;
-    }
-
     $block = @(int)$params[0];
     if(!$block || $block > (int)getblockcount())
         throw new Error("block not found", 404);
@@ -298,12 +302,13 @@ function page_changeparams($params)
         $blockworth = 50;
 
     if(isset($_GET['precision'])) {
+
         $precision = (integer)$_GET['precision'];
-        if($precision > 9000) {
-            echo "Precision level over nine thousand! (Don't kill my server.)";
-            return;
-        }
+        if($precision > 9000)
+            throw new BadRequest("Precision level over nine thousand! (Don't kill my server.)");
+
         $didsomething = 1;
+
     } else {
         $precision = 8;
     }
@@ -316,8 +321,11 @@ function page_changeparams($params)
     }
 
     if($didsomething != 1) {
+        $smarty = new Smarty();
+        
         echo "This gives you the end total BC and the time required to reach it after changing various parameters. \nSubsidy - Starting subsidy (generation reward)\nInterval - Subsidy is halved after this many blocks\nPrecision - Decimals of precision\nLeave a parameter out to use the Bitcoin default:\n";
-        echo "/q/changeparams?interval = 210000&precision = 8&subsidy = 50";
+
+        echo "/q/changeparams?interval=210000&precision=8&subsidy=50";
 
         return;
     }
@@ -333,7 +341,7 @@ function page_changeparams($params)
             $blockcount = "0";
             if($blockworth != 0)
             {
-                echo "Could not complete calculation in 10, 000, 000, 000 blocks. (This is an arbitrary limit of the calculator.)";
+                echo "Could not complete calculation in 10,000,000,000 blocks. (This is an arbitrary limit of the calculator.)";
                 return;
             }
         }
@@ -352,27 +360,16 @@ function page_changeparams($params)
 
 function page_addresstohash($params) 
 {
-    if(isset($params[0]))
-    {
-        $address = trim($params[0]);
-        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address) > 300)
-            throw new BadRequest("the input is not base58 (or is too large).");
+    $address = trim($params[0]);
+    if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address) > 300)
+        throw new BadRequest("the input is not base58 (or is too large).");
 
-        echo addressToHash160($address);
-    }
-    else
-    {
-        echo "Converts a BC address to the hash160 format used internally by Bitcoin.\nNote: the address is not checked for validity.\n/q/addresstohash/address";
-    }
+    echo addressToHash160($address);
+
 }
 
 function page_hashtoaddress($params)
 {
-    if(!isset($params[0])) {
-        echo "Converts a Bitcoin hash160 (in hex) to a valid BC address.\n/q/hashtoaddress/hexHash[/address_version]";
-        return;
-    }
-
     $address_version = Address::$version;
 
     if(isset($params[1])) {
@@ -394,19 +391,6 @@ function page_hashtoaddress($params)
 
 function page_checkaddress($params)
 {
-    if(!isset($params[0])) {
-        echo "Returns 00 if the address is valid, something else otherwise. Note that it
-is impossible to determine whether someone actually *owns* the address. Someone
-could easily give 20 random bytes to /q/hashtoaddress and get a valid address.
-X5 - Address not base58
-SZ - Address not the correct size
-CK - Failed hash check
-Anything else - the encoded AddressVersion (always 00 in valid addresses)
-
-/q/checkaddress/address";
-        return;
-    }
-
     $address = trim($params[0]);
     if(preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address))
     {
@@ -447,16 +431,6 @@ Anything else - the encoded AddressVersion (always 00 in valid addresses)
 
 function page_hashpubkey($params)
 {
-    if(!isset($params[0])) {
-        echo "Generates a hash160 from a Bitcoin public key. In the current implementation,
-public keys are either the first 65 bytes (130 hex characters) of a scriptPubKey
-or the last 65 bytes of a scriptSig, depending on the type of transaction. They
-always seem to start with 04 (this must be included).
-
-/q/hashpubkey/hexPubKey";
-        return;
-    }
-
     $pubkey = strtoupper(remove0x(trim($params[0])));
 
     if(!preg_match('/^[0-9A-F]+$/', $pubkey) || strlen($pubkey) > 300)
@@ -594,12 +568,6 @@ function page_avgtxnumber($params)
 
 function page_getreceivedbyaddress($params)
 {
-    if(!isset($params[0])) {
-        echo "Returns total BTC received by an address. Sends are not taken into account.\nThe optional second parameter specifies the required number of confirmations for\ntransactions comprising the balance.\n/q/getreceivedbyaddress/address[/minconf]";
-
-        return;
-    }
-    
     $minconf = (int)get($params, 1, 1);
     if($minconf <= 0)
         throw new BadRequest("you must use an integer above 0 for minconf");
@@ -625,11 +593,6 @@ function page_getreceivedbyaddress($params)
 
 function page_getsentbyaddress($params)
 {
-    if(!isset($params[0])) {
-        echo "Returns total BTC sent by an address. Using this data is almost always a very\nbad idea, as the amount of BTC sent by an address is usually very different\nfrom the amount of BTC sent by the person owning the address.\n/q/getsentbyaddress/address";
-        return;
-    }
-    
     $address = $params[0];
 
     if(!Address::checkAddress($address)) 
@@ -648,11 +611,6 @@ function page_getsentbyaddress($params)
 
 function page_addressbalance($params)
 {
-    if(!isset($params[0])) {
-        echo "This is the same as subtracting /q/getsentbyaddress from /q/getreceivedbyaddress.\nUsing this data is almost always a very bad idea, as the amount of BTC sent\nby an address is usually very different from the amount of BTC sent by the\nperson owning the address.\n/q/addressbalance/address";
-        return;
-    }
-    
     $address = $params[0];
 
     if(!Address::checkAddress($address))
@@ -677,11 +635,6 @@ function page_addressbalance($params)
 
 function page_addressfirstseen($params)
 {
-    if(!isset($params[0])) {
-        echo "Returns the block time at which an address was first seen.\n/q/addressfirstseen/address";
-        return;
-    }
-
     $address = $params[0];
     if(!Address::checkAddress($address))
         throw new BadRequest("invalid address");
@@ -702,21 +655,7 @@ function page_nethash($params)
     if(!$step || ! ($step >= 5 && $step <= 10000))
         throw new BadRequest("invalid step (must be between 5 - 10000");
 
-    echo "Each row contains some info about the single block at height blockNumber:
-- Time when the block was created (UTC)
-- Decimal target
-- Difficulty
-- The average number of hashes it takes to solve a block at this difficulty
-
-Each row also contains stats that apply to the set of blocks between blockNumber and the previous blockNumber:
-- Average interval between blocks.
-- Average target over these blocks. This is only different from the block target when
-a retarget occurred in this section. (I'm not totally sure I'm doing this correctly.)
-- The estimated number of network-wide hashes per second during
-this time, calculated from the average interval and average target.\n";
-
-    echo "blockNumber, time, target, avgTargetSinceLast, difficulty, hashesToWin, avgIntervalSinceLast, netHashPerSecond\n";
-    echo "START DATA\n";
+    $smarty = new Smarty();
 
     $query = SQL("SELECT number, 
                               EXTRACT ('epoch' FROM time) AS time, 
@@ -735,89 +674,38 @@ this time, calculated from the average interval and average target.\n";
                        
                        $step);
 
-    $onerow = SQL::d($query);
-    
-    while($onerow) {
+    $rows = array();
+
+    while($onerow = SQL::d($query)) {
+
         $number = $onerow["number"];
         $time = $onerow["time"];
         $target = decodeCompact($onerow["bits"]);
         
-        if(empty($target))
-        {
-            senderror(500);
-            echo "ERROR: divide by zero";
-            return;
-        }
+        if(!$target)
+            throw new Error("divide by zero", 500);
         
         // average targets to get accurate estimates
-        if(isset($prevtarget))
-        {
-            $avgtarget = bcdiv(bcadd($target, $prevtarget), "2", 0);
-        }
-        else
-        {
-            $avgtarget = $target;
-        }
+        $avgtarget = isset($prevtarget) ? bcdiv(bcadd($target, $prevtarget), "2", 0) : $target;
         $prevtarget = $target;
         
         $difficulty = bcdiv("26959535291011309493156476344723991336010898738574164086137773096960", $target, 2);
         $hashestowin = bcdiv("1", bcdiv($target, "115792089237316195423570985008687907853269984665640564039457584007913129639935", 55), 0);
         $avginterval = $onerow['avg'];
         $avghashestowin = bcdiv("1", bcdiv($avgtarget, "115792089237316195423570985008687907853269984665640564039457584007913129639935", 55), 0);
-        if($avginterval) {
-            $nethash = bcdiv($avghashestowin, $avginterval, 0);
-            echo "$number, $time, $target, $avgtarget, $difficulty, $hashestowin, $avginterval, $nethash\n";
-        }
-        $onerow = SQL::d($query);
+        if(!$avginterval)
+            continue;
+
+        $nethash = bcdiv($avghashestowin, $avginterval, 0);
+        $rows[] = array($number, $time, $target, $avgtarget, $difficulty, $hashestowin, $avginterval, $nethash);
     }
+    $smarty->assign('rows', $rows);
+    $smarty->display('stats/nethash.tpl');
 }
 
 function page_mytransactions($params)
 {
     // This RELIES on the fact that only address transactions will be sent/received
-    
-    if(!isset($params[0])) {
-
-        echo "Returns all transactions sent or received by the period-separated Bitcoin
-addresses in parameter 1. The optional parameter 2 contains a hexadecimal block
-hash: transactions in blocks up to and including this block will not be returned.
-
-The transactions are returned as a JSON object. The object's \"keys\" are transaction
-hashes. The structure is like this (mostly the same as jgarzik's getblock):
-root
-transaction hash
-hash (same as above)
-version
-number of inputs
-number of outputs
-lock time
-size (bytes)
-inputs
-previous output
-hash of previous transaction
-index of previous output
-scriptsig (replaced by \"coinbase\" on generation inputs)
-sequence (only when the sequence is non-default)
-address (on address transactions only!)
-outputs
-value
-scriptpubkey
-address (on address transactions only!)
-block hash
-block number
-block time
-
-Only transactions to or from the listed *addresses* will be shown. Public key transactions
-will not be included.
-
-When encountering an error, the response will start with \"ERROR:\", followed by
-the error. An appropriate HTTP response code will also be sent. A response with no body
-must also be considered to be an error.
-
-/q/mytransactions/address1.address2/blockHash";
-        return;
-    }
-
     if(!empty($params[1]))
     {
         $params[1] = remove0x(trim(strtolower($params[1])));
