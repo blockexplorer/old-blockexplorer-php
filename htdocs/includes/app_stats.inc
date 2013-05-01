@@ -99,7 +99,16 @@ function app_stats($req)
 
             if($smarty->templateExists($tpl))
                 return $smarty->display($tpl);
+
+            if(in_array($req->page, array("avgtxsize", 
+                                          "avgtxvalue", 
+                                          "avgtxnumber",
+                                          "avgblocksize", 
+                                          "interval", 
+                                          "eta"))) 
+                $req->params[0] = 1000;
         }
+            
         
         try {
             return call_user_func($callback, $req->params);
@@ -442,11 +451,7 @@ function page_hashpubkey($params)
 
 function page_avgtxsize($params)
 {
-    if(!isset($params[0]))
-        $params[0] = 1000;
-
     $lastblocks = (int)$params[0];
-
     if($lastblocks <= 0)
         throw new BadRequest("the first parameter is the number of blocks to look back through.");
 
@@ -460,9 +465,6 @@ function page_avgtxsize($params)
 
 function page_avgtxvalue($params)
 {
-    if(!isset($params[0]))
-        $params[0] = 1000;
-
     $lastblocks = (int)$params[0];
     if($lastblocks <= 0)
         throw new BadRequest("the first parameter is the number of blocks to look back through.");
@@ -482,11 +484,7 @@ function page_avgtxvalue($params)
 
 function page_avgblocksize($params)
 {
-    if(!isset($params[0]))
-        $params[0] = 1000;
-
     $lastblocks = (int)$params[0];
-
     if($lastblocks <= 0)
         throw new BadRequest("the first parameter is the number of blocks to look back through.");
 
@@ -499,9 +497,6 @@ function page_avgblocksize($params)
 
 function page_interval($params)
 {
-    if(!isset($params[0]))
-        $params[0] = 1000;
-
     $lastblocks = (int)$params[0];
     if($lastblocks < 2)
         throw new BadRequest("invalid block count");
@@ -525,9 +520,6 @@ function page_interval($params)
 
 function page_eta($params)
 {
-    if(!isset($params[0]))
-        $params[0] = 1000;
-
     $lastblocks = (int)$params[0];
     if($lastblocks < 2)
         throw new BadRequest("invalid block count");
@@ -549,9 +541,6 @@ function page_eta($params)
 
 function page_avgtxnumber($params)
 {
-    if(!isset($params[0]))
-        $params[0] = 1000;
-
     $lastblocks = (int)$params[0];
     if($lastblocks < 1)
         throw new BadRequest("invalid block count");
