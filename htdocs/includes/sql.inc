@@ -53,6 +53,10 @@ class SQL {
         return pg_fetch_row(SQL($arg, $params))[0];
     }
 
+    static function row($arg, $params = false) {
+        return pg_fetch_row(SQL($arg, $params));
+    }
+
     // Get number of rows
     static function count($arg, $params = false) {
         return pg_num_rows(SQL($arg, $params));
