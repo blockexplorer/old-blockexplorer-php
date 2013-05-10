@@ -11,6 +11,7 @@ $title = "Error";
 require_once 'encode.inc';
 require_once 'sql.inc';
 require_once 'cache.inc';
+require_once 'Smarty.class.php' ;
 
 date_default_timezone_set('UTC');
 function error($message, $status = false)
@@ -35,7 +36,7 @@ function error($message, $status = false)
 function help($message)
 {
 	$encodemessage = urlencode($message);
-	return "<sup><a href=\"/nojshelp/$encodemessage\"title = \"$message\" onClick = \"informHelp();return false\" class = \"help\">?</a></sup>";
+	return "<sup><a href=\"/nojshelp/$encodemessage\" title=\"$message\" onClick=\"informHelp(); return false\" class=\"help\">?</a></sup>";
 }
 
 function removeTrailingZeroes($value)
@@ -66,6 +67,14 @@ function removeLeadingZeroes($value)
 		return $value;
 }
 
+function smarty_modifier_rzerotrim($value) {
+    return removeTrailingZeroes($value);
+}
+
+function smarty_modifier_lzerotrim($value) {
+    return removeLeadingZeroes($value);
+}
+
 function thousands($num)
 {
 	$start = strpos($num, ".");
@@ -93,7 +102,87 @@ function thousands($num)
 	return $return;
 }
 
-function app_explore($req) {
+class Error extends Exception { } 
+class BadRequest extends Error { }
+
+function app_explore($req) 
+{
+    $config = $req->testnet ? "TestnetConfig" : "Config";
+    SQL::init($config::$dbname);
+    Address::$version = $config::$address_version;
+
+    $handle_error = function($code, $msg) {
+        senderror($code);
+
+        $smarty = new Smarty();
+        $smarty->assign('message', $msg);
+        $smarty->display('error.tpl');
+        die();
+    };
+
+    $model_func = "model_" . $req->page;
+
+    if(!function_exists($model_func))
+        return old_app_explore($req);
+        //$handle_error(404, "No such page");
+    
+    $vars = array('rootpath' => ($req->testnet ? "/testnet/" : "/"),
+                  'scheme' => $req->scheme);
+
+    try {
+        $model_func($vars, $req->params);
+    } catch (BadRequest $e) {
+        return $handle_error(400, $e->getMessage());
+    } catch (Error $e) {
+        return $handle_error($e->getCode(), $e->getMessage());
+    }
+
+    $theme_func = "theme_" . $req->page;
+    if(!function_exists($theme_func))
+        return theme_default($vars, $req->page);
+
+    $theme_func($vars, $req->page);
+}
+
+function theme_default($vars, $page) {
+    $smarty = new Smarty();
+
+    $tpl = "explore/{$page}.tpl";
+    if(!$smarty->templateExists($tpl))
+        return var_dump($vars);
+
+    foreach($vars as $key => $value)
+        $smarty->assign($key, $value);
+
+    $smarty->display($tpl);
+
+}
+
+function model_home(&$vars, $params) {
+    $vars['title'] = "Home";
+
+    $vars['checkpoint'] = CHECKPOINT;
+    $vars['keywords'] = array();
+    
+    $latestblock = SQL::s("SELECT max(number) FROM blocks;");
+    Cache::handle_client_side_etag($latestblock);
+
+    $vars['latestblock'] = $latestblock;
+
+    $query = SQL("SELECT number AS number, 
+                         encode(hash, 'hex') AS hash, 
+                         time AT TIME ZONE 'UTC' AS time, 
+                         transactions AS count, 
+                         totalvalue AS sum, size 
+                         
+                  FROM blocks 
+                  
+                  ORDER BY number DESC LIMIT 20;");
+
+    $vars['query'] = $query;
+}
+
+function old_app_explore($req) {
     global $error;
     global $title;
 
@@ -114,13 +203,10 @@ function app_explore($req) {
     // /Homepage
     if($req->page == "home")
     {
-        $cache = Cache::get("home");
-        if($cache !== false)
-        {
+        if($cache = Cache::get("home")) {
             echo $cache;
             goto end;
         }
-        ob_start();
         
         $title = "Home";
         $description = "Bitcoin Block Explorer is a web tool that provides detailed information about Bitcoin blocks, addresses, and transactions.";
@@ -149,7 +235,7 @@ function app_explore($req) {
             goto end;
         }
         ob_start();
-        
+    
         $title = "Transaction stats (temporary)";
         $description = "Largest transactions and strange transactions.";
         $keywords = "";
@@ -904,37 +990,6 @@ EOD;
 
     if($req->page == "home")
     {
-        $help = help("Like this");
-
-    echo <<<"EOD"
-
-<h1>Bitcoin Block Explorer</h1>
-<p>Bitcoin Block Explorer allows you to easily view information about the
-<a href="https://en.bitcoin.it/wiki/Blocks">blocks</a>, <a href="https://en.bitcoin.it/wiki/Address">addresses</a>, and <a href="https://en.bitcoin.it/wiki/Transactions">transactions</a> created by <a href="http://bitcoin.org">Bitcoin</a>.
-It uses the <a href="https://bitcointalk.org/index.php?topic = 724.0">getblock</a> patch by jgarzik, but also does a
-ton of processing to make certain tasks, such as tracking transactions, easier. Help text is included in the tooltips produced by superscript question marks: $help. All times are UTC. Tell me (theymos) if you find any bugs.
-
-<p>Some data from Bitcoin Block Explorer is available through the machine-readable <a href="{$rootpath}q">Real-Time Stats pages</a>.
-
-<p>Thanks to <a href="https://www.privateinternetaccess.com/" title = "VPN Service">Private Internet Access</a> for running a mirror of Bitcoin Block Explorer. They've asked me to advertise their site: <a href="https://www.privateinternetaccess.com/" title = "VPN Service">VPN Service</a> (accepts Bitcoin ! ).</p>
-
-EOD;
-        
-        $latestblock = SQL::s("SELECT max(number) FROM blocks;");
-
-        if($latestblock < CHECKPOINT)
-        {
-            echo "<p><span style = \"color:red\">Notice:</span> The block database is currently being reloaded (probably to enable some cool new feature). You can refresh this page to see the progress.</p>";
-        }
-        
-        echo "<h3>Search</h3>\n";
-        echo '<p>You can enter a block number, address, block hash, transaction hash, hash160. Hashes are expressed in hexadecimal.</p>'."\n";
-        echo '<form action = "/search" method = "post" ><p><input type = "text" name = "q" size = "50"><input type = "submit" value = "Search"></p></form>'."\n";
-        
-        // /latest blocks
-        echo "<h3>Latest blocks".help("Up to two minutes delay.")."</h3>\n";
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Number".help("A count of the number of blocks up to this one, with the genesis block being 0.")."</th><th>Hash".help("Truncated hash of this block.")."</th><th>Time".help("UTC time included in this block. The network's time must not be relied upon for precision, but it is generally accurate.")."</th><th>Transactions".help("Number of transactions in this block. All blocks have at least one generation transaction.")."</th><th>Total BTC".help("Total BTC moved by the transactions in this block.")."</th><th>Size (kB)".help("The data size of this block. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte = 1000 bytes (this is how Bitcoin does it).")."</th></tr>\n";
         while($oneblock)
         {
             $hash = $oneblock["hash"];
@@ -946,6 +1001,7 @@ EOD;
             $total = $oneblock["count"];
             $size = round($oneblock["size"]/1000, 3);
             $totalbtc = removeTrailingZeroes($oneblock["sum"]);
+
             echo "<tr>\n";
             echo "<td><a href=\"{$rootpath}block/$hash\">$number</a></td>\n";
             echo "<td><a href=\"{$rootpath}block/$hash\">$hashtrunc</a></td>\n";
@@ -959,7 +1015,9 @@ EOD;
         echo "</table>\n";
         
         // /largest transactions last 300 blocks
-        /*$result = SQL("SELECT encode(inputs.tx, 'hex') AS hash, 
+        /*******************
+        
+        $result = SQL("SELECT encode(inputs.tx, 'hex') AS hash, 
                                      sum(inputs.value) AS totalvalue, 
                                      encode(blocks.hash, 'hex') AS blockhash, 
                                      blocks.number AS blocknum, 
@@ -1021,7 +1079,9 @@ EOD;
             echo "<tr><td>$txhashtrunc</td><td>$blockview</td><td>$time</td></tr>";
             $onetx = SQL::d($result);
         }
-        echo "</table>";*/
+        echo "</table>";
+        
+        ********************/
         
         echo "<p>Largest transactions and strange transactions have been temporarily moved <a href=\"{$rootpath}txstats\">here</a>.</p>";
         
