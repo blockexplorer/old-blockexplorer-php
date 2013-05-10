@@ -47,6 +47,4 @@ ton of processing to make certain tasks, such as tracking transactions, easier. 
 
 {/while}
 </table>
-
-
 {/block}

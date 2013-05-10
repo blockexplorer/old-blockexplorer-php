@@ -107,6 +107,13 @@ class BadRequest extends Error { }
 
 function app_explore($req) 
 {
+    // try to get request from Cache first
+    $cache_key = md5($req->path);
+    if($cached = Cache::get($cache_key)) {
+        echo $cached;
+        return;
+    }
+        
     $config = $req->testnet ? "TestnetConfig" : "Config";
     SQL::init($config::$dbname);
     Address::$version = $config::$address_version;
@@ -117,34 +124,55 @@ function app_explore($req)
         $smarty = new Smarty();
         $smarty->assign('message', $msg);
         $smarty->display('error.tpl');
-        die();
+
+        return;
     };
 
+    // get model
     $model_func = "model_" . $req->page;
 
     if(!function_exists($model_func))
         return old_app_explore($req);
         //$handle_error(404, "No such page");
-    
+
     $vars = array('rootpath' => ($req->testnet ? "/testnet/" : "/"),
                   'scheme' => $req->scheme);
 
     try {
-        $model_func($vars, $req->params);
+        $cache_conf = $model_func($vars, $req->params);
     } catch (BadRequest $e) {
         return $handle_error(400, $e->getMessage());
     } catch (Error $e) {
         return $handle_error($e->getCode(), $e->getMessage());
     }
 
-    $theme_func = "theme_" . $req->page;
-    if(!function_exists($theme_func))
-        return theme_default($vars, $req->page);
+    // render model into view
+    $view_func = "view_" . $req->page;
+    $view = (function_exists($view_func) ?  $view_func($vars, $req->page) :
+                                            view_default($vars, $req->page));
 
-    $theme_func($vars, $req->page);
+    if(!$view)
+        return;
+
+    if($cache_conf) {
+        $etag = null;
+
+        if(is_array($cache_conf)) {
+            $ttl = $cache_conf[0];
+            $etag = $cache_conf[1];
+        } else {
+            $ttl = $cache_conf;
+        }
+
+        Cache::put($cache_key, $view, $ttl, $etag);
+        if($etag)
+            Cache::handle_client_side_etag($etag);
+    }
+
+    echo $view;
 }
 
-function theme_default($vars, $page) {
+function view_default($vars, $page) {
     $smarty = new Smarty();
 
     $tpl = "explore/{$page}.tpl";
@@ -154,8 +182,7 @@ function theme_default($vars, $page) {
     foreach($vars as $key => $value)
         $smarty->assign($key, $value);
 
-    $smarty->display($tpl);
-
+    return $smarty->fetch($tpl);
 }
 
 function model_home(&$vars, $params) {
@@ -165,8 +192,6 @@ function model_home(&$vars, $params) {
     $vars['keywords'] = array();
     
     $latestblock = SQL::s("SELECT max(number) FROM blocks;");
-    Cache::handle_client_side_etag($latestblock);
-
     $vars['latestblock'] = $latestblock;
 
     $query = SQL("SELECT number AS number, 
@@ -180,6 +205,8 @@ function model_home(&$vars, $params) {
                   ORDER BY number DESC LIMIT 20;");
 
     $vars['query'] = $query;
+
+    return array(30, $latestblock);
 }
 
 function old_app_explore($req) {

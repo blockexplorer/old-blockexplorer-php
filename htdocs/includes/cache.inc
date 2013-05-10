@@ -28,13 +28,20 @@ class Cache {
 
     // set etag for this URI and expires headers. 
     // If browser has seen our etag, return a 304 Not modified
+    // if no etag_token is provided, will default to etag_magic
 
-    static function handle_client_side_etag($etag = false, $ttl = false)
+    static function handle_client_side_etag($etag_token = null, $ttl = null)
     {
         if(!self::$enabled || headers_sent()) 
             return true;
 
-        $etag = sprintf('W/"%s"', $etag ? ("{$etag}-" . (string)self::$etag_magic) : (string)self::$etag_magic);
+        // If etag_token is true, just use the default etag token
+        if($etag_token === true)
+            $etag_token = null;
+
+        $etag = sprintf('W/"%s"', 
+                        ($etag_token !== null) ? ("{$etag_token}-" . (string)self::$etag_magic) :
+                                                 (string)self::$etag_magic);
         header("ETag: $etag");
 
         if($ttl !== false)
@@ -55,6 +62,9 @@ class Cache {
     }
 
     static function put($key, $data, $ttl, $etag = null) {
+
+        if($etag === true) 
+            $etag = "true";
 
         $header = implode(';', array(time() + $ttl,
                                      strlen($data),
@@ -94,7 +104,8 @@ class Cache {
         $time = $header[0];
         $length = $header[1];
         $chk = $header[2];
-        $etag = $header[3];
+        $etag = ($header[3] === "true" ? true : 
+                                         $header[3]);
         
         if(empty($time) || empty($length) || empty($chk))
             return false;
@@ -117,12 +128,8 @@ class Cache {
             return false;
         }
         
-        if($etag) {
-            if($etag != "1") // (string)true == "1"
-                self::handle_client_side_etag($etag);
-            else
-                self::handle_client_side_etag();
-        }
+        if($etag)
+            self::handle_client_side_etag($etag);
         
         fgets($fh); // advance pointer
         $data = fread($fh, $length);
