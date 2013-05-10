@@ -4,8 +4,11 @@ define('HOSTNAME', 'dev.blockexplorer.com');
 define('REDIRECT_CANONICAL', false);
 
 define('CACHE_ENABLED', true);
-define('CACHE_TMPDIR', '/tmp/bbe');
+define('CACHE_DIR', '/tmp/bbe');
+define('CACHE_DIR_LEVELS', 1);
 define('CACHE_ETAG_MAGIC', 19); // increment this when application changes
+
+
 
 class Config {
     static $dbname = "testexplore";

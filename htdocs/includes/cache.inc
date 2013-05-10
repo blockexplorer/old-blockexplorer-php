@@ -2,6 +2,7 @@
 
 require_once('config.inc');
 
+
 class CacheError extends Exception {
 }
 
@@ -9,20 +10,20 @@ function _mkdir($path) {
 	if(file_exists($path)) 
         return true;
 
-    if(!mkdir($path))
+    if(!mkdir($path, 0775, true))
         return false;
-
-    chmod($path, 0775);
 
     return true;
 }
 
-if(!_mkdir(CACHE_TMPDIR))
-    throw new CacheError("can't create CACHE_TMPDIR=" . CACHE_TMPDIR);
+if(!_mkdir(CACHE_DIR))
+    throw new CacheError("can't create CACHE_DIR=" . CACHE_DIR);
 
 class Cache {
 
-    static $tmpdir = CACHE_TMPDIR;
+    static $dir = CACHE_DIR;
+    static $dir_levels = CACHE_DIR_LEVELS;
+
     static $enabled = CACHE_ENABLED;
     static $etag_magic = CACHE_ETAG_MAGIC;
 
@@ -71,7 +72,9 @@ class Cache {
                                      crc32($data),
                                      $etag));
 
-        $fpath = self::$tmpdir . "/$key";
+        $fpath = self::_cached_path($key);
+        _mkdir(dirname($fpath));
+
         if(!$fh = fopen($fpath, "c"))
             throw new CacheError("can't write to $fpath");
 
@@ -84,12 +87,23 @@ class Cache {
         fclose($fh);
     }
 
+    static function _cached_path($key) {
+        $key = md5($key);
+
+        $path = "";
+        for($i = 0; $i < self::$dir_levels; $i++)
+            $path .= substr($key, $i*2, 2) . "/";
+
+        $path .= substr($key, $i*2);
+
+        return self::$dir . "/" . $path;
+    }
     static function get($key) {
 
         if(!self::$enabled)
             return false;
 
-        $fpath = self::$tmpdir . "/$key";
+        $fpath = self::_cached_path($key);
         if(!file_exists($fpath))
             return false;
         

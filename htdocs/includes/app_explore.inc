@@ -108,7 +108,7 @@ class BadRequest extends Error { }
 function app_explore($req) 
 {
     // try to get request from Cache first
-    $cache_key = md5($req->path);
+    $cache_key = $req->path;
     if($cached = Cache::get($cache_key)) {
         echo $cached;
         return;
