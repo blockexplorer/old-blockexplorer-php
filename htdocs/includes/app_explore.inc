@@ -209,6 +209,40 @@ function model_home(&$vars, $params) {
     return array(30, $latestblock);
 }
 
+function model_txstats(&$vars, $params) {
+    $vars['title'] = "Transaction stats (temporary)";
+    $vars['keywords'] = array();
+
+    $latestblock = SQL::s("SELECT max(number) AS latest FROM blocks;");
+
+    Cache::handle_client_side_etag($latestblock);
+
+    $vars['query_largest'] = SQL("SELECT encode(inputs.tx, 'hex') AS hash, 
+                                         sum(inputs.value) AS totalvalue, 
+                                         encode(blocks.hash, 'hex') AS blockhash, 
+                                         blocks.number AS blocknum, 
+                                         blocks.time AT TIME ZONE 'UTC' AS time 
+
+                                  FROM blocks JOIN inputs ON 
+                                       (inputs.block = blocks.hash) 
+
+                                  WHERE blocks.number > (SELECT max(blocks.number)-300 FROM blocks) 
+                                  GROUP BY blocks.time, inputs.tx, blocks.hash, blocks.number 
+                                  ORDER BY totalvalue DESC LIMIT 20;");
+
+
+    $vars['query_strange'] = SQL("SELECT DISTINCT encode(outputs.tx, 'hex') AS txhash, 
+                                                  encode(outputs.block, 'hex') AS blockhash, 
+                                                  outputs.id, blocks.number AS blocknum, 
+                                                  blocks.time AT TIME ZONE 'UTC' AS time 
+                                  FROM outputs JOIN blocks ON 
+                                       (blocks.hash = outputs.block) 
+                                  WHERE outputs.type = 'Strange' 
+                                  ORDER BY outputs.id DESC LIMIT 20;"); 
+
+    return array(60, $latestblock);
+}
+
 function old_app_explore($req) {
     global $error;
     global $title;
@@ -227,22 +261,6 @@ function old_app_explore($req) {
     }
 
 
-    if($req->page == "txstats")
-    {
-        $cache = Cache::get("txstats");
-        if($cache !== false)
-        {
-            echo $cache;
-            goto end;
-        }
-        ob_start();
-    
-        $title = "Transaction stats (temporary)";
-        $description = "Largest transactions and strange transactions.";
-        $keywords = "";
-        $latestblock = SQL::s("SELECT max(number) AS latest FROM blocks;");
-        Cache::handle_client_side_etag($latestblock);
-    }
     // /Search
     if($req->page == "search") {
 
@@ -987,68 +1005,6 @@ EOD;
         {
             echo "<p>Note: results may not be complete if the search would return more than 100 items.</p>\n";
         }
-    }
-
-    if($req->page == "txstats")
-    {
-        echo "<p>Because getting this data is currently very slow, this data has been moved here from the front page until I rewrite my database code.</p>";
-        
-        $result = SQL("SELECT encode(inputs.tx, 'hex') AS hash, 
-                              sum(inputs.value) AS totalvalue, 
-                              encode(blocks.hash, 'hex') AS blockhash, 
-                              blocks.number AS blocknum, 
-                              blocks.time AT TIME ZONE 'UTC' AS time 
-
-                       FROM blocks JOIN inputs ON 
-                            (inputs.block = blocks.hash) 
-
-                       WHERE blocks.number > (SELECT max(blocks.number)-300 FROM blocks) 
-                       GROUP BY blocks.time, inputs.tx, blocks.hash, blocks.number 
-                       ORDER BY totalvalue DESC LIMIT 20;");
-
-        echo "<h3>Largest transactions (last 300 blocks)".help("Sorted by BTC moved")."</h3>\n";
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Transaction".help("Truncated transaction hash.")."</th><th>Amount".help("BTC moved.")."</th><th>Block".help("The block this transaction appeared in.")."</th><th>Time".help("UTC network time of the block this appeared in (somewhat unreliable).")."</th></tr>\n";
-        $onetx = SQL::d($result);
-        while($onetx)
-        {
-            $txhash = $onetx["hash"];
-            $txhashtrunc = "<a href=\"{$rootpath}tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
-            $amount = removeTrailingZeroes($onetx["totalvalue"]);
-            $blockhash = $onetx["blockhash"];
-            $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
-            $time = $onetx["time"];
-            echo "<tr><td>$txhashtrunc</td><td>$amount</td><td>$blockview</td><td>$time</td></tr>";
-            $onetx = SQL::d($result);
-        }
-        echo "</table>\n";
-
-        echo "<h3>Latest strange transactions</h3>";
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Transaction".help("Truncated transaction hash.")."</th><th>Block".help("The block this transaction appeared in.")."</th><th>Time".help("UTC network time of the block this appeared in (somewhat unreliable).")."</th></tr>\n";
-
-        $result = SQL("SELECT DISTINCT encode(outputs.tx, 'hex') AS txhash, 
-                                      encode(outputs.block, 'hex') AS blockhash, 
-                                      outputs.id, blocks.number AS blocknum, 
-                                      blocks.time AT TIME ZONE 'UTC' AS time 
-                      FROM outputs JOIN blocks ON 
-                           (blocks.hash = outputs.block) 
-                      WHERE outputs.type = 'Strange' 
-                      ORDER BY outputs.id DESC LIMIT 20;"); 
-
-        $onetx = SQL::d($result);
-        while($onetx)
-        {
-            $txhash = $onetx["txhash"];
-            $txhashtrunc = "<a href=\"{$rootpath}tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
-            $blockhash = $onetx["blockhash"];
-            $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
-            $time = $onetx["time"];
-            echo "<tr><td>$txhashtrunc</td><td>$blockview</td><td>$time</td></tr>";
-            $onetx = SQL::d($result);
-        }
-        echo "</table>";
-        Cache::put("txstats", ob_get_flush(), 60, $latestblock);
     }
 
     if($req->page == "block")
