@@ -227,32 +227,6 @@ function old_app_explore($req) {
     }
 
 
-    // /Homepage
-    if($req->page == "home")
-    {
-        if($cache = Cache::get("home")) {
-            echo $cache;
-            goto end;
-        }
-        
-        $title = "Home";
-        $description = "Bitcoin Block Explorer is a web tool that provides detailed information about Bitcoin blocks, addresses, and transactions.";
-        $keywords = "";
-        $result = SQL("SELECT number AS number, 
-                              encode(hash, 'hex') AS hash, 
-                              time AT TIME ZONE 'UTC' AS time, 
-                              transactions AS count, 
-                              totalvalue AS sum, size 
-                              
-                       FROM blocks 
-                       
-                       ORDER BY number DESC LIMIT 20;");
-
-        $oneblock = SQL::d($result);
-        $etag = $oneblock["number"];
-
-        Cache::handle_client_side_etag($etag);
-    }
     if($req->page == "txstats")
     {
         $cache = Cache::get("txstats");
@@ -1013,106 +987,6 @@ EOD;
         {
             echo "<p>Note: results may not be complete if the search would return more than 100 items.</p>\n";
         }
-    }
-
-    if($req->page == "home")
-    {
-        while($oneblock)
-        {
-            $hash = $oneblock["hash"];
-            $hashtrunc = removeLeadingZeroes($hash);
-            $hashtrunc = substr($hashtrunc, 0, 10)."...";
-            
-            $number = $oneblock["number"];
-            $time = $oneblock["time"];
-            $total = $oneblock["count"];
-            $size = round($oneblock["size"]/1000, 3);
-            $totalbtc = removeTrailingZeroes($oneblock["sum"]);
-
-            echo "<tr>\n";
-            echo "<td><a href=\"{$rootpath}block/$hash\">$number</a></td>\n";
-            echo "<td><a href=\"{$rootpath}block/$hash\">$hashtrunc</a></td>\n";
-            echo "<td>$time</td>\n";
-            echo "<td>$total</td>\n";
-            echo "<td>$totalbtc</td>\n";
-            echo "<td>$size</td>\n";
-            echo "</tr>\n";
-            $oneblock = SQL::d($result);
-        }
-        echo "</table>\n";
-        
-        // /largest transactions last 300 blocks
-        /*******************
-        
-        $result = SQL("SELECT encode(inputs.tx, 'hex') AS hash, 
-                                     sum(inputs.value) AS totalvalue, 
-                                     encode(blocks.hash, 'hex') AS blockhash, 
-                                     blocks.number AS blocknum, 
-                                     blocks.time AT TIME ZONE 'UTC' AS time 
-
-                              FROM blocks JOIN inputs ON 
-                                   (inputs.block = blocks.hash) 
-                                
-                              WHERE blocks.number > (SELECT max(blocks.number)-300 FROM blocks) 
-
-                              GROUP BY blocks.time, inputs.tx, blocks.hash, blocks.number 
-                              ORDER BY totalvalue DESC 
-                              
-                              LIMIT 20;");
-
-        echo "<h3>Largest transactions (last 300 blocks)".help("Sorted by BTC moved")."</h3>\n";
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Transaction".help("Truncated transaction hash.")."</th><th>Amount".help("BTC moved.")."</th><th>Block".help("The block this transaction appeared in.")."</th><th>Time".help("UTC network time of the block this appeared in (somewhat unreliable).")."</th></tr>\n";
-        $onetx = SQL::d($result);
-        while($onetx)
-        {
-            $txhash = $onetx["hash"];
-            $txhashtrunc = "<a href=\"{$rootpath}tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
-            $amount = removeTrailingZeroes($onetx["totalvalue"]);
-            $blockhash = $onetx["blockhash"];
-            $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
-            $time = $onetx["time"];
-            echo "<tr><td>$txhashtrunc</td><td>$amount</td><td>$blockview</td><td>$time</td></tr>";
-            $onetx = SQL::d($result);
-        }
-        echo "</table>\n";
-        
-        // /latest strange transactions
-        echo "<h3>Latest strange transactions</h3>";
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Transaction".help("Truncated transaction hash.")."</th><th>Block".help("The block this transaction appeared in.")."</th><th>Time".help("UTC network time of the block this appeared in (somewhat unreliable).")."</th></tr>\n";
-
-        $result = SQL("SELECT DISTINCT encode(outputs.tx, 'hex') AS txhash, 
-                                       encode(outputs.block, 'hex') AS blockhash, 
-                                       outputs.id, blocks.number AS blocknum, 
-                                       blocks.time AT TIME ZONE 'UTC' AS time 
-
-                       FROM outputs JOIN blocks ON 
-                            (blocks.hash = outputs.block) 
-
-                       WHERE outputs.type = 'Strange' 
-                       ORDER BY outputs.id DESC 
-
-                       LIMIT 20;"); 
-
-        $onetx = SQL::d($result);
-        while($onetx)
-        {
-            $txhash = $onetx["txhash"];
-            $txhashtrunc = "<a href=\"{$rootpath}tx/$txhash\">".substr($txhash, 0, 10)."...</a>";
-            $blockhash = $onetx["blockhash"];
-            $blockview = "<a href=\"{$rootpath}block/$blockhash\">".$onetx["blocknum"]."</a>";
-            $time = $onetx["time"];
-            echo "<tr><td>$txhashtrunc</td><td>$blockview</td><td>$time</td></tr>";
-            $onetx = SQL::d($result);
-        }
-        echo "</table>";
-        
-        ********************/
-        
-        echo "<p>Largest transactions and strange transactions have been temporarily moved <a href=\"{$rootpath}txstats\">here</a>.</p>";
-        
-        Cache::put("home", ob_get_flush(), 30, $etag);
     }
 
     if($req->page == "txstats")
