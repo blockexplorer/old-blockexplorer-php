@@ -49,5 +49,5 @@ ton of processing to make certain tasks, such as tracking transactions, easier. 
 </table>
 
 
-<p>Largest transactions and strange transactions have been temporarily moved <a href=\"{$rootpath}txstats\">here</a>.</p>
+<p>Largest transactions and strange transactions have been temporarily moved <a href="{$rootpath}txstats">here</a>.</p>
 {/block}

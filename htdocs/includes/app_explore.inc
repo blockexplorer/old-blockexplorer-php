@@ -240,7 +240,7 @@ function old_app_explore($req) {
         $title = "Transaction stats (temporary)";
         $description = "Largest transactions and strange transactions.";
         $keywords = "";
-        $latestblock = SQL::val("SELECT max(number) AS latest FROM blocks;");
+        $latestblock = SQL::s("SELECT max(number) AS latest FROM blocks;");
         Cache::handle_client_side_etag($latestblock);
     }
     // /Search
@@ -1048,7 +1048,7 @@ EOD;
             $onetx = SQL::d($result);
         }
         echo "</table>";
-        Cache::put("txstats", ob_get_flush(), 60, $latestblock['latest']);
+        Cache::put("txstats", ob_get_flush(), 60, $latestblock);
     }
 
     if($req->page == "block")
