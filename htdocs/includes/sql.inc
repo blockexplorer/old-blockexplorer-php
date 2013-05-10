@@ -38,24 +38,46 @@ class SQL {
         self::$_DB = $db;
     }
 
-    // Get dictionary
-    static function d($arg, $params = false) {
-        return pg_fetch_assoc(SQL($arg, $params));
+
+    // Get row as object
+    static function row_object($arg, $params = false) {
+        return pg_fetch_object(SQL($arg, $params));
+    }
+    // row_object alias
+    static function o($arg, $params = false) { return self::row_object($arg, $params); }
+
+    // Get all results as an array of dictionaries
+    static function rows_dict($arg, $params = false) {
+        return pg_fetch_all(SQL($arg, $params));
     }
     
-    // Get array
+    // Get row as dictionary
+    static function row_dict($arg, $params = false) {
+        return pg_fetch_assoc(SQL($arg, $params));
+    }
+
+    // row_dict alias
+    static function d($arg, $params = false) { return self::row_dict($arg, $params); }
+    
+    // Get row as array
+    static function row_array($arg, $params = false) {
+        return pg_fetch_row(SQL($arg, $params));
+    }
+
+    // Get singleton (first value from row with single value)
+    static function singleton($arg, $params = false) {
+        return pg_fetch_row(SQL($arg, $params))[0];
+    }
+
+    // singleton alias
+    static function s($arg, $params = false) { return self::singleton($arg, $params); }
+
+    // Get weird hybrid array/dictionary
     static function a($arg, $params = false) {
         return pg_fetch_array(SQL($arg, $params));
     }
 
-    // Get singleton
-    static function s($arg, $params = false) {
-        return pg_fetch_row(SQL($arg, $params))[0];
-    }
 
-    static function row($arg, $params = false) {
-        return pg_fetch_row(SQL($arg, $params));
-    }
 
     // Get number of rows
     static function count($arg, $params = false) {
