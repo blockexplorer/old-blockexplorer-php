@@ -239,8 +239,6 @@ function model_txstats(&$vars, $params) {
 
     $latestblock = SQL::s("SELECT max(number) AS latest FROM blocks;");
 
-    Cache::handle_client_side_etag($latestblock);
-
     $vars['query_largest'] = SQL("SELECT encode(inputs.tx, 'hex') AS hash, 
                                          sum(inputs.value) AS totalvalue, 
                                          encode(blocks.hash, 'hex') AS blockhash, 
