@@ -128,16 +128,34 @@ function app_explore($req)
         return;
     };
 
-    // get model
+    $vars = array('rootpath' => ($req->testnet ? "/testnet/" : "/"),
+                  'scheme' => $req->scheme,
+                  'page' => $req->page);
+
+    // get redirect function
+    $redirect_func = "redirect_" . $req->page;
+    if(function_exists($redirect_func)) {
+        try {
+            $redirect = $redirect_func($vars, $req->params);
+        } catch (BadRequest $e) {
+            return $handle_error(400, $e->getMessage());
+        } catch (Error $e) {
+            return $handle_error($e->getCode(), $e->getMessage());
+        }
+        if($redirect) {
+            if(is_array($redirect))
+                redirect($redirect[0], $redirect[1]);
+            else
+                redirect($redirect);
+        }
+    }
+
+    // get model function
     $model_func = "model_" . $req->page;
 
     if(!function_exists($model_func))
         return old_app_explore($req);
         //$handle_error(404, "No such page");
-
-    $vars = array('rootpath' => ($req->testnet ? "/testnet/" : "/"),
-                  'scheme' => $req->scheme,
-                  'page' => $req->page);
 
     try {
         $cache_conf = $model_func($vars, $req->params);
@@ -244,17 +262,17 @@ function model_txstats(&$vars, $params) {
     return array(60, $latestblock);
 }
 
-function model_search(&$vars, $params) {
+function redirect_search($vars, $params) {
 
     $rootpath = $vars['rootpath'];
 
     // The form on / POST submits to /search/, but I want it to go to a static page (without ?q= stuff)
     if(isset($_POST["q"]))
-        redirect("{$rootpath}{$vars['page']}/{$_POST["q"]}");
+        return "{$rootpath}{$vars['page']}/{$_POST["q"]}";
 
     $input = $params[0];
     if(!$input)
-        redirect($rootpath);
+        return $rootpath;
 
     $input = trim($input);
     if(!preg_match("/^[0-9A-HJ-NP-Za-km-z]+$/", $input))
@@ -265,7 +283,7 @@ function model_search(&$vars, $params) {
     {
         $hash = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $input);
         if($hash) 
-            redirect("{$rootpath}block/$hash");
+            return "{$rootpath}block/$hash";
 
     }
     // size limits
@@ -276,7 +294,7 @@ function model_search(&$vars, $params) {
     if(strlen($input) < 36 && !preg_match("/0/", $input)) {
         $exists = SQL::s("SELECT 1 FROM keys WHERE address = $1;", $input);
         if($exists)
-            redirect("{$rootpath}address/$input");
+            return "{$rootpath}address/$input";
     }
 
     // hex only from here
@@ -285,57 +303,60 @@ function model_search(&$vars, $params) {
     // block hash
     $exists = SQL::s("SELECT 1 FROM blocks WHERE hash = decode($1, 'hex');", $input);
     if($exists)
-        redirect("{$rootpath}block/$input");
+        return "{$rootpath}block/$input";
 
     // tx hash
     $exists = SQL::s("SELECT 1 FROM transactions WHERE hash = decode($1, 'hex');", $input);
     if($exists)
-        redirect("{$rootpath}tx/$input");
+        return "{$rootpath}tx/$input";
 
     // hash160
     $address = SQL::s("SELECT address FROM keys WHERE hash160 = decode($1, 'hex');", $input);
     if($address) 
-        redirect("{$rootpath}address/$address");
+        return "{$rootpath}address/$address";
 
     // unseen address/hash160
     if(Address::checkAddress($input))
-        redirect("{$rootpath}address/$input");
+        return "{$rootpath}address/$input";
 
     if(strlen($input) == 40 && preg_match("/[0-9a-f]{4,130}/", $input))
-        redirect("{$rootpath}address/" .  Address::hash160ToAddress($input));
+        return "{$rootpath}address/" .  $input;
 }
 
-function model_b(&$vars, $params) {
-    if(preg_match("/^[0-9]{1,7}$/", $params[0])) {
-        $result = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $params[0]);
-        if($result)
-            redirect("{$vars['rootpath']}block/$result", 301);
-    }
+function redirect_b($vars, $params) {
+    if(!preg_match("/^[0-9]{1,7}$/", $params[0]))
+        return;
+
+    $result = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $params[0]);
+    if($result)
+        return array("{$vars['rootpath']}block/$result", 301);
 }
 
-function model_t(&$vars, $params) {
-    if(preg_match("/^[1-9A-HJ-NP-Za-km-z]+$/", $params[0])) {
-        $shortcut = decodeBase58($params[0]);
-        $hash = SQL::s("SELECT encode(hash, 'hex') AS hash 
-                        FROM t_shortlinks 
-                        WHERE shortcut = decode($1, 'hex');", $shortcut);
-        if($hash)
-            redirect("{$vars['rootpath']}tx/$hash", 301);
-    }
+function redirect_t($vars, $params) {
+    if(!preg_match("/^[1-9A-HJ-NP-Za-km-z]+$/", $params[0]))
+        return;
+
+    $shortcut = decodeBase58($params[0]);
+    $hash = SQL::s("SELECT encode(hash, 'hex') AS hash 
+                    FROM t_shortlinks 
+                    WHERE shortcut = decode($1, 'hex');", $shortcut);
+    if($hash)
+        return array("{$vars['rootpath']}tx/$hash", 301);
 }
 
-function model_a(&$vars, $params) {
-    if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $params[0])) {
-        $shortcut = decodeBase58($params[0]);
-        $address = SQL::s("SELECT address 
+function redirect_a(&$vars, $params) {
+    if(!preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $params[0]))
+        return;
 
-                           FROM a_shortlinks JOIN keys ON 
-                                (keys.hash160 = a_shortlinks.hash160) 
+    $shortcut = decodeBase58($params[0]);
+    $address = SQL::s("SELECT address 
 
-                           WHERE shortcut = decode($1, 'hex');", $shortcut);
-        if($address)
-            redirect("{$vars['rootpath']}address/$address", 301);
-    }
+                       FROM a_shortlinks JOIN keys ON 
+                            (keys.hash160 = a_shortlinks.hash160) 
+
+                       WHERE shortcut = decode($1, 'hex');", $shortcut);
+    if($address)
+        return array("{$vars['rootpath']}address/$address", 301);
 }
 
 function old_app_explore($req) {
