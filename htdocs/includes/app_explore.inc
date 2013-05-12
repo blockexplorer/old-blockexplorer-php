@@ -136,7 +136,8 @@ function app_explore($req)
         //$handle_error(404, "No such page");
 
     $vars = array('rootpath' => ($req->testnet ? "/testnet/" : "/"),
-                  'scheme' => $req->scheme);
+                  'scheme' => $req->scheme,
+                  'page' => $req->page);
 
     try {
         $cache_conf = $model_func($vars, $req->params);
@@ -243,6 +244,67 @@ function model_txstats(&$vars, $params) {
     return array(60, $latestblock);
 }
 
+function model_search(&$vars, $params) {
+
+    $rootpath = $vars['rootpath'];
+
+    // The form on / POST submits to /search/, but I want it to go to a static page (without ?q= stuff)
+    if(isset($_POST["q"]))
+        redirect("{$rootpath}{$vars['page']}/{$_POST["q"]}");
+
+    $input = $params[0];
+    if(!$input)
+        redirect($rootpath);
+
+    $input = trim($input);
+    if(!preg_match("/^[0-9A-HJ-NP-Za-km-z]+$/", $input))
+        throw new BadRequest("Invalid characters");
+
+    // block number
+    if(preg_match("/^[0-9]+$/", $input))
+    {
+        $hash = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $input);
+        if($hash) 
+            redirect("{$rootpath}block/$hash");
+
+    }
+    // size limits
+    if(strlen($input) < 6 || strlen($input) > 130)
+        throw new BadRequest("The number of characters you entered is either too small (must be 6+), or too large to ever return any results (130 hex characters is the size of a public key).");
+
+    // address
+    if(strlen($input) < 36 && !preg_match("/0/", $input)) {
+        $exists = SQL::s("SELECT 1 FROM keys WHERE address = $1;", $input);
+        if($exists)
+            redirect("{$rootpath}address/$input");
+    }
+
+    // hex only from here
+    $input = strtolower(remove0x($input));
+
+    // block hash
+    $exists = SQL::s("SELECT 1 FROM blocks WHERE hash = decode($1, 'hex');", $input);
+    if($exists)
+        redirect("{$rootpath}block/$input");
+
+    // tx hash
+    $exists = SQL::s("SELECT 1 FROM transactions WHERE hash = decode($1, 'hex');", $input);
+    if($exists)
+        redirect("{$rootpath}tx/$input");
+
+    // hash160
+    $address = SQL::s("SELECT address FROM keys WHERE hash160 = decode($1, 'hex');", $input);
+    if($address) 
+        redirect("{$rootpath}address/$address");
+
+    // unseen address/hash160
+    if(Address::checkAddress($input))
+        redirect("{$rootpath}address/$input");
+
+    if(strlen($input) == 40 && preg_match("/[0-9a-f]{4,130}/", $input))
+        redirect("{$rootpath}address/" .  Address::hash160ToAddress($input));
+}
+
 function old_app_explore($req) {
     global $error;
     global $title;
@@ -261,79 +323,6 @@ function old_app_explore($req) {
     }
 
 
-    // /Search
-    if($req->page == "search") {
-
-        // The form on / POST submits to /search/, but I want it to go to a static page (without ?q= stuff)
-        if(isset($_POST["q"]))
-        {
-            redirect("{$rootpath}$req->page/{$_POST["q"]}");
-        }
-        $title = "Search";
-        $input = $req->params[0];
-        if($input === NULL)
-        {
-            redirect($rootpath);
-        }
-        $input = trim($input);
-        if(!preg_match("/^[0-9A-HJ-NP-Za-km-z]+$/", $input))
-        {
-            error("Invalid characters.", 400);
-            goto headerend;
-        }
-
-        // block number
-        if(preg_match("/^[0-9]+$/", $input))
-        {
-            $hash = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $input);
-            if($hash) 
-                redirect("{$rootpath}block/$hash");
-
-        }
-        // size limits
-        if(strlen($input)<6 || strlen($input)>130)
-        {
-            error("The number of characters you entered is either too small (must be 6+), or too large to ever return any results (130 hex characters is the size of a public key).", 400);
-            goto headerend;
-        }
-        // address
-        if(strlen($input)<36 && !preg_match("/0/", $input))
-        {
-            $exists = SQL::s("SELECT 1 FROM keys WHERE address = $1;", $input);
-            if($exists)
-                redirect("{$rootpath}address/$input");
-        }
-        // hex only from here
-        $originput = $input;
-        $input = strtolower(remove0x($input));
-
-        // block hash
-        $exists = SQL::s("SELECT 1 FROM blocks WHERE hash = decode($1, 'hex');", $input);
-        if($exists)
-            redirect("{$rootpath}block/$input");
-
-        // tx hash
-        $exists = SQL::s("SELECT 1 FROM transactions WHERE hash = decode($1, 'hex');", $input);
-        if($exists)
-            redirect("{$rootpath}tx/$input");
-
-        // hash160
-        $address = SQL::s("SELECT address FROM keys WHERE hash160 = decode($1, 'hex');", $input);
-        if($address) 
-            redirect("{$rootpath}address/$address");
-
-        // unseen address/hash160
-        if(Address::checkAddress($originput))
-        {
-            redirect("{$rootpath}address/$originput");
-        }
-
-        if(strlen($input) == 40 && preg_match("/[0-9a-f]{4,130}/", $input))
-        {
-            $input = Address::hash160ToAddress($input);
-            redirect("{$rootpath}address/$input");
-        }
-    }
     // //short links
     if($req->page == "b")
     {
