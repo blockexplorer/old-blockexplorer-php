@@ -132,32 +132,32 @@ function app_explore($req)
                   'scheme' => $req->scheme,
                   'page' => $req->page);
 
-    // get page function
-    $page_func = "page_" . $req->page;
-    if(function_exists($page_func))
+    $invoke_handler = function($handler) use (&$vars, $req) {
         try {
-            return call_user_func($page_func, $vars, $req->params);
+            return $handler($vars, $req->params);
         } catch (BadRequest $e) {
             return $handle_error(400, $e->getMessage());
         } catch (Error $e) {
             return $handle_error($e->getCode(), $e->getMessage());
         }
+    };
+
+    // get page function
+    $page_func = "page_" . $req->page;
+    if(function_exists($page_func))
+        return $invoke_handler($page_func);
 
     // get redirect function
     $redirect_func = "redirect_" . $req->page;
     if(function_exists($redirect_func)) {
-        try {
-            $redirect = call_user_func($redirect_func, $vars, $req->params);
-        } catch (BadRequest $e) {
-            return $handle_error(400, $e->getMessage());
-        } catch (Error $e) {
-            return $handle_error($e->getCode(), $e->getMessage());
-        }
+        $redirect = $invoke_handler($redirect_func);
         if($redirect) {
             if(is_array($redirect))
                 redirect($redirect[0], $redirect[1]);
             else
                 redirect($redirect);
+        } else {
+            return $handle_error(404, "No such page");
         }
     }
 
@@ -168,13 +168,7 @@ function app_explore($req)
         return old_app_explore($req);
         //$handle_error(404, "No such page");
 
-    try {
-        $cache_conf = $model_func($vars, $req->params);
-    } catch (BadRequest $e) {
-        return $handle_error(400, $e->getMessage());
-    } catch (Error $e) {
-        return $handle_error($e->getCode(), $e->getMessage());
-    }
+    $cache_conf = $invoke_handler($model_func);
 
     // render model into view
     $view_func = "view_" . $req->page;
