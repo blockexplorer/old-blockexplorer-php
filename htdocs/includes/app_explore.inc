@@ -132,11 +132,22 @@ function app_explore($req)
                   'scheme' => $req->scheme,
                   'page' => $req->page);
 
+    // get page function
+    $page_func = "page_" . $req->page;
+    if(function_exists($page_func))
+        try {
+            return call_user_func($page_func, $vars, $req->params);
+        } catch (BadRequest $e) {
+            return $handle_error(400, $e->getMessage());
+        } catch (Error $e) {
+            return $handle_error($e->getCode(), $e->getMessage());
+        }
+
     // get redirect function
     $redirect_func = "redirect_" . $req->page;
     if(function_exists($redirect_func)) {
         try {
-            $redirect = $redirect_func($vars, $req->params);
+            $redirect = call_user_func($redirect_func, $vars, $req->params);
         } catch (BadRequest $e) {
             return $handle_error(400, $e->getMessage());
         } catch (Error $e) {
@@ -359,6 +370,38 @@ function redirect_a(&$vars, $params) {
         return array("{$vars['rootpath']}address/$address", 301);
 }
 
+function page_rawtx($vars, $params) {
+    $tx = trim(strtolower(remove0x($params[0])));
+    if(!preg_match("/^[0-9a-f]{64}$/", $tx))
+        throw new BadRequest("Not in correct format");
+
+    $raw = SQL::s("SELECT raw 
+                   FROM transactions 
+                   WHERE hash = decode($1, 'hex');", $tx);
+    if(!$raw)
+        throw new Error("Transaction does not exist.", 404);
+
+    Cache::handle_client_side_etag();
+    header("Content-type: text/plain");
+    echo $raw;
+}
+
+function page_rawblock($vars, $params) {
+    $block = trim(strtolower(remove0x($params[0])));
+    if(!preg_match("/^[0-9a-f]{64}$/", $block))
+        throw new BadRequest("Not in correct format");
+
+    $raw = SQL::s("SELECT raw 
+                   FROM blocks 
+                   WHERE hash = decode($1, 'hex');", array($block));
+    if(!$raw)
+        throw new Error("Block does not exist.", 404);
+
+    Cache::handle_client_side_etag();
+    header("Content-type: text/plain");
+    echo $raw;
+}
+
 function old_app_explore($req) {
     global $error;
     global $title;
@@ -376,57 +419,6 @@ function old_app_explore($req) {
         goto headerend;
     }
 
-    // /Raw block/tx
-    if($req->page == "rawtx")
-    {
-        header("Content-type: text/plain");
-        $tx = trim(strtolower(remove0x($req->params[0])));
-        if(!preg_match("/^[0-9a-f]{64}$/", $tx))
-        {
-            senderror(400);
-            echo "ERROR: Not in correct format";
-            die();
-        }
-        $raw = SQL::s("SELECT raw 
-                       FROM transactions 
-                       WHERE hash = decode($1, 'hex');", $tx);
-        if(!$raw) {
-            senderror(404);
-            echo "ERROR: Transaction does not exist.";
-            die();
-        }
-        else
-        {
-        Cache::handle_client_side_etag();
-        echo $raw;
-        die();
-        }
-    }
-    if($req->page == "rawblock")
-    {
-        header("Content-type: text/plain");
-        $block = trim(strtolower(remove0x($req->params[0])));
-        if(!preg_match("/^[0-9a-f]{64}$/", $block))
-        {
-            senderror(400);
-            echo "ERROR: Not in correct format";
-            die();
-        }
-        $raw = SQL::s("SELECT raw 
-                       FROM blocks 
-                       WHERE hash = decode($1, 'hex');", array($block));
-        if(!$raw) {
-            senderror(404);
-            echo "ERROR: Block does not exist.";
-            die();
-        }
-        else
-        {
-        Cache::handle_client_side_etag();
-        echo $raw;
-        die();
-        }
-    }
     // /Block
     if($req->page == "block")
     {
