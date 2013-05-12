@@ -305,6 +305,39 @@ function model_search(&$vars, $params) {
         redirect("{$rootpath}address/" .  Address::hash160ToAddress($input));
 }
 
+function model_b(&$vars, $params) {
+    if(preg_match("/^[0-9]{1,7}$/", $params[0])) {
+        $result = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $params[0]);
+        if($result)
+            redirect("{$vars['rootpath']}block/$result", 301);
+    }
+}
+
+function model_t(&$vars, $params) {
+    if(preg_match("/^[1-9A-HJ-NP-Za-km-z]+$/", $params[0])) {
+        $shortcut = decodeBase58($params[0]);
+        $hash = SQL::s("SELECT encode(hash, 'hex') AS hash 
+                        FROM t_shortlinks 
+                        WHERE shortcut = decode($1, 'hex');", $shortcut);
+        if($hash)
+            redirect("{$vars['rootpath']}tx/$hash", 301);
+    }
+}
+
+function model_a(&$vars, $params) {
+    if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $params[0])) {
+        $shortcut = decodeBase58($params[0]);
+        $address = SQL::s("SELECT address 
+
+                           FROM a_shortlinks JOIN keys ON 
+                                (keys.hash160 = a_shortlinks.hash160) 
+
+                           WHERE shortcut = decode($1, 'hex');", $shortcut);
+        if($address)
+            redirect("{$vars['rootpath']}address/$address", 301);
+    }
+}
+
 function old_app_explore($req) {
     global $error;
     global $title;
@@ -320,45 +353,6 @@ function old_app_explore($req) {
         error("Bitcoin Block Explorer will be back shortly.", 503);
         $title = "Maintenance mode";
         goto headerend;
-    }
-
-
-    // //short links
-    if($req->page == "b")
-    {
-        if(preg_match("/^[0-9]{1,7}$/", $req->params[0]))
-        {
-            $result = SQL::s("SELECT encode(hash, 'hex') FROM blocks WHERE number = $1;", $req->params[0]);
-            if($result)
-                redirect("{$rootpath}block/$result", 301);
-        }
-    }
-    if($req->page == "t")
-    {
-        if(preg_match("/^[1-9A-HJ-NP-Za-km-z]+$/", $req->params[0]))
-        {
-            $shortcut = decodeBase58($req->params[0]);
-            $hash = SQL::s("SELECT encode(hash, 'hex') AS hash 
-                            FROM t_shortlinks 
-                            WHERE shortcut = decode($1, 'hex');", $shortcut);
-            if($hash)
-                redirect("{$rootpath}tx/$hash", 301);
-        }
-    }
-    if($req->page == "a")
-    {
-        if(preg_match("/^[1-9A-HJ-NP-Za-km-z]{7,20}$/", $req->params[0]))
-        {
-            $shortcut = decodeBase58($req->params[0]);
-            $address = SQL::s("SELECT address 
-
-                               FROM a_shortlinks JOIN keys ON 
-                                    (keys.hash160 = a_shortlinks.hash160) 
-
-                               WHERE shortcut = decode($1, 'hex');", $shortcut);
-            if($address)
-                redirect("{$rootpath}address/$address", 301);
-        }
     }
 
     // /Raw block/tx
