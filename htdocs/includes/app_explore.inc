@@ -332,13 +332,10 @@ function model_block(&$vars, $params) {
                              WHERE inputs.tx = decode($1, 'hex') 
                              ORDER BY inputs.id;");
 
-    
-    return;
-
     if($next)
-        Cache::put("block".md5($req->params[0]), ob_get_flush(), 300, true);
+        return array(300, true);
     else
-        Cache::put("block".md5($req->params[0]), ob_get_flush(), 300);
+        return 300;
 }
 
 function redirect_search($vars, $params) {
