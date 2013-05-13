@@ -114,6 +114,9 @@ class SQLPrepare {
         if(!SQL::$_DB) 
             throw new SQLException("database not initialized");
 
+        if($params !== false && !is_array($params)) 
+            $params = array($params);
+
         $retval = pg_execute(SQL::$_DB, $name, $params);
 
         if(!$retval) {
