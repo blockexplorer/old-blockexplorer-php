@@ -33,14 +33,7 @@
 
 <li>Total BTC{help("Total BTC sent through this block, including fees")}: {$block.totalvalue|rzerotrim}</li>
 
-<li>Size{help("The data size of this block. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte=1000 bytes (this is how Bitcoin does it)")}: 
-
-
-{if $block["size"] < 1000}
-{$block.size} bytes
-{else}
-{$block.size / 1000} kilobytes
-{/if}
+<li>Size{help("The data size of this block. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte=1000 bytes (this is how Bitcoin does it)")}: {$block.size|fmt_bytesize}
 
 </li>
 

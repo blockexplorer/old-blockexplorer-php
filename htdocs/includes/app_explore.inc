@@ -106,6 +106,14 @@ function smarty_modifier_thousands($value) {
     return thousands($value);
 }
 
+function smarty_modifier_fmt_bytesize($value) {
+    if($value < 1000)
+        return "$value bytes";
+
+    $value /= 1000;
+    return "$value kilobytes";
+}
+
 class Error extends Exception { } 
 class BadRequest extends Error { }
 
@@ -338,6 +346,90 @@ function model_block(&$vars, $params) {
         return 300;
 }
 
+function model_tx(&$vars, $params) {
+    // get tx hash
+    $tx_hash = trim(strtolower(remove0x($params[0])));
+    if(!preg_match("/^[0-9a-f]{64}$/", $tx_hash))
+        throw new BadRequest("Not in correct format");
+
+    $tx = SQL::d("SELECT id, 
+                         encode(transactions.block, 'hex') AS block, 
+                         transactions.fee AS fee, 
+                         transactions.size AS size, 
+                         blocks.time AT TIME ZONE 'UTC' AS time,
+                         blocks.number AS blocknumber 
+
+                  FROM transactions LEFT JOIN blocks ON 
+                       (transactions.block = blocks.hash)
+
+                  WHERE transactions.hash = decode($1, 'hex');", 
+
+                 $tx_hash);
+
+    if(!$tx)
+        throw new Error("No such transaction", 404);
+
+    $vars['tx'] = $tx;
+
+    $vars['tx_hash'] = $tx_hash;
+    
+    $vars['outputs_total'] = SQL::s("SELECT sum(value)
+                                     FROM outputs 
+                                     WHERE tx = decode($1, 'hex')",
+                                     $tx_hash);
+
+    $vars['inputs_total'] = SQL::s("SELECT sum(value)
+                                    FROM inputs
+                                    WHERE tx = decode($1, 'hex')",
+                                    $tx_hash);
+
+    $vars['query_outputs'] = SQL("SELECT outputs.index AS index, 
+                                         outputs.value AS value,
+                                         keys.address AS address,
+                                         outputs.type AS type,
+                                         outputs.scriptpubkey AS scriptpubkey 
+
+                                  FROM outputs LEFT JOIN keys ON 
+                                       (keys.hash160 = outputs.hash160)
+
+                                  WHERE outputs.tx = decode($1, 'hex') 
+
+                                  ORDER BY outputs.index;", 
+
+                                 $tx_hash);
+
+    $vars['query_inputs'] = SQL("SELECT encode(inputs.prev, 'hex') AS prev, 
+                                        inputs.index AS index,
+                                        inputs.value AS value,
+                                        keys.address AS address,
+                                        inputs.type AS type,
+                                        inputs.scriptsig AS scriptsig,
+                                        inputs.id AS id 
+
+                                 FROM inputs LEFT JOIN keys ON 
+                                      (keys.hash160 = inputs.hash160)
+
+                                 WHERE inputs.tx = decode($1, 'hex') 
+
+                                 ORDER BY inputs.id;", 
+
+                                 $tx_hash);
+    
+    $vars['query_duplicates'] = SQL("SELECT encode(block, 'hex') AS block 
+                                     FROM special 
+                                     WHERE tx=decode($1, 'hex')", $tx_hash);
+
+    $vars['keywords'] = array("transaction", $tx_hash);
+
+    SQLPrepare("redeemed", "SELECT id, 
+                                   encode(tx, 'hex') AS tx 
+                            FROM inputs 
+                            WHERE prev=decode('$tx_hash', 'hex') AND 
+                                  index=$1");
+
+    return array(300, true);
+}
+
 function redirect_search($vars, $params) {
 
     $rootpath = $vars['rootpath'];
@@ -482,95 +574,6 @@ function old_app_explore($req) {
         error("Bitcoin Block Explorer will be back shortly.", 503);
         $title = "Maintenance mode";
         goto headerend;
-    }
-
-    // /Transaction
-    if($req->page == "tx")
-    {
-        $cache = Cache::get($req->page . md5($req->params[0]));
-        if($cache !== false)
-        {
-            echo $cache;
-            goto end;
-        }
-        ob_start();
-        
-        // get tx hash
-        $hash = trim(strtolower(remove0x($req->params[0])));
-        if(!preg_match("/^[0-9a-f]{64}$/", $hash))
-        {
-            error("Not in correct format", 400);
-            goto headerend;
-        }
-        $hashtrunc = substr($hash, 0, 10)."...";
-
-        $tx = SQL::d("SELECT id, 
-                             encode(transactions.block, 'hex') AS block, 
-                             transactions.fee AS fee, 
-                             transactions.size AS size, 
-                             blocks.time AT TIME ZONE 'UTC' AS time,
-                             blocks.number AS blocknumber 
-
-                      FROM transactions LEFT JOIN blocks ON 
-                           (transactions.block = blocks.hash)
-
-                      WHERE transactions.hash = decode($1, 'hex');", 
-
-                     $hash);
-
-        if(!$tx) {
-            error("No such transaction", 404);
-            goto headerend;
-        }
-        // Cache::handle_client_side_etag();
-        // this needs to be fixed
-        
-        $outputs = SQL("SELECT outputs.index AS index, 
-                               outputs.value AS value,
-                               sum(outputs.value) OVER () AS totalvalue,
-                               keys.address AS address,
-                               outputs.type AS type,
-                               outputs.scriptpubkey AS scriptpubkey 
-
-                        FROM outputs LEFT JOIN keys ON 
-                             (keys.hash160 = outputs.hash160)
-
-                        WHERE outputs.tx = decode($1, 'hex') 
-
-                        ORDER BY outputs.index;", 
-
-                       $hash);
-
-        $inputs = SQL("SELECT encode(inputs.prev, 'hex') AS prev, 
-                              inputs.index AS index,
-                              inputs.value AS value,
-                              sum(inputs.value) OVER () AS totalvalue,
-                              keys.address AS address,
-                              inputs.type AS type,
-                              inputs.scriptsig AS scriptsig,
-                              inputs.id AS id 
-
-                       FROM inputs LEFT JOIN keys ON 
-                            (keys.hash160 = inputs.hash160)
-
-                       WHERE inputs.tx = decode($1, 'hex') 
-
-                       ORDER BY inputs.id;", 
-
-                       $hash);
-
-        $oneoutput = SQL::d($outputs);
-        $oneinput = SQL::d($inputs);
-        
-        $totalin = thousands(removeTrailingZeroes($oneinput["totalvalue"]));
-        $totalout = thousands(removeTrailingZeroes($oneoutput["totalvalue"]));
-        $fee = removeTrailingZeroes($tx["fee"]);
-        $numin = SQL::count($inputs);
-        $numout = SQL::count($outputs);
-        
-        $title = "Tx $hashtrunc";
-        $description = "Information about Bitcoin transaction $hashtrunc.";
-        $keywords = "transaction, $hash";
     }
 
     // /Address
@@ -1017,154 +1020,6 @@ EOD;
         {
             echo "<p>Note: results may not be complete if the search would return more than 100 items.</p>\n";
         }
-    }
-
-    if($req->page == "tx")
-    {
-        echo "<h1>Transaction</h1>\n";
-        echo "<ul class = \"infoList\">\n";
-        
-        echo "<li>Hash".help("Full hash of this transaction").": $hash</li>\n";
-        echo "<li>Appeared in <a href=\"{$rootpath}block/{$tx["block"]}\">block {$tx["blocknumber"]}</a> ({$tx["time"]})</li>\n";
-        echo "<li>Number of inputs".help("Total number of previous outputs this transaction redeems").": $numin (<a href=\"#inputs\">Jump to inputs</a>)</li>\n";
-        echo "<li>Total BTC in".help("Total BTC redeemed from previous transactions").": $totalin</li>\n";
-        echo "<li>Number of outputs: $numout (<a href=\"#outputs\">Jump to outputs</a>)</li>\n";
-        echo "<li>Total BTC out".help("Total BTC sent with this transaction.").": $totalout</li>\n";
-        $properbytes = $tx["size"];
-        if($properbytes<1000)
-        {
-            $properbytes = "$properbytes bytes";
-        }
-        else
-        {
-            $properbytes = $properbytes/1000;
-            $properbytes = "$properbytes kilobytes";
-        }
-        echo "<li>Size".help("The data size of this transaction. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte = 1000 bytes (this is how Bitcoin does it).").": $properbytes</li>\n";
-        echo "<li>Fee".help("The amount of BTC given to the person who generated the block this appeared in. It's the difference between total BTC in and total BTC out.").": $fee</li>\n";
-        echo "<li><a href=\"{$rootpath}rawtx/$hash\">Raw transaction</a>".help("Almost the same as getblock.")."</li>\n";
-        // duplicate transactions
-        $duplicate = "";
-        $duplicates = SQL("SELECT encode(block, 'hex') AS block 
-                           FROM special 
-                           WHERE tx = decode($1, 'hex')", array($hash));
-
-        $onedup = SQL::d($duplicates);
-        $firstdup = true;
-        if($onedup)
-        {
-            $duplicate .= "<li>Duplicates".help("An exact copy of this transaction appeared in these blocks. These copies are not spendable.").":";
-            while($onedup)
-            {
-                $hashtrunc = substr($hashtrunc, 0, 10)."...";
-                $blockhash = $onedup["block"];
-                if(!$firstdup)
-                {
-                    $duplicate .= " , ";
-                }
-                $duplicate .= "<a href=\"{$rootpath}block/$blockhash\">".substr(removeLeadingZeroes($blockhash), 0, 10)."</a>";
-                $onedup = SQL::d($duplicates);
-            }
-            $duplicate .= "</li>";
-        }
-        echo $duplicate;
-        // end duplicates
-        echo "</ul>\n";
-        // inputs
-        echo "<h3><a name = \"inputs\">Inputs</a>".help("Each input redeems a previous output with a signature.")."</h3>\n";
-        
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Previous output (index)".help("The truncated hash of a previous transaction and the index of the output that this input is redeeming (after the colon). The first output in a transaction has an index of 0.")."</th><th>Amount".help("Amount of BTC gotten from this output")."</th><th>From address".help("The addresses of the referenced outputs. Whoever sent this transaction owns all of these addresses.")."</th><th>Type".help("The type of the referenced output. Bitcoin only sends a few different types of transactions. 'Address' sends to an Bitcoin address. 'Pubkey' sends directly to a public key, and is used for IP transactions and generations. 'Strange' is an unusual transaction not created by the official Bitcoin client.")."</th><th>ScriptSig".help("This script is matched with the referenced output's scriptPubKey. It usually contains a signature, and possibly a public key. ScriptSigs of generation inputs are sometimes called the 'coinbase' parameter, and they contain the current compact target and the extraNonce variable")."</th></tr>\n";
-        // go through inputs
-        while($oneinput)
-        {
-            $type = $oneinput["type"];
-            $value = removeTrailingZeroes($oneinput["value"]);
-            if($type == "Generation")
-            {
-                $value = "$value + fees";
-            }
-            $myid = $oneinput["id"];
-            echo "<tr>\n";
-            $prev = $oneinput["prev"];
-            $previndex = $oneinput["index"];
-            $prevtrunc = substr($prev, 0, 12)."...:$previndex";
-            if(!is_null($prev))
-            {
-            echo "<td><a name = \"i$myid\" href=\"{$rootpath}tx/$prev#o$previndex\">$prevtrunc</a></td>\n";
-            }
-            else
-            {
-                echo "<td><a name = \"i$myid\">N/A</a></td>\n";
-            }
-            echo "<td>$value</td>\n";
-            $address = $oneinput["address"];
-            if(is_null($address))
-            {
-                $address = "Unknown";
-                if($type == "Generation")
-                {
-                    $address = "N/A";
-                }
-            }
-            else
-            {
-                $address = "<a href=\"{$rootpath}address/$address\">$address</a>";
-            }
-            echo "<td>$address</td>\n";
-            echo "<td>$type</td>\n";
-            echo "<td><div class = \"hugeCell\">{$oneinput["scriptsig"]}</div></td>\n";
-            echo "</tr>\n";
-            $oneinput = SQL::d($inputs);
-        }
-        
-        echo "</table>\n";
-        
-        // outputs
-        echo "<h3><a name = \"outputs\">Outputs</a>".help("Each output sends BTC to some address. In the official client, usually one output sends coins to the destination, and one output sends coins back to a new address owned by the sender.")."</h3>\n";
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Index".help("Starts at 0 and increments for each output.")."</th><th>Redeemed at input".help("If this output has ever been spent by the recipient, the transaction that did it is listed here. (If you look at these links, you will see that I assign a number to each input. This is an internal ID unrelated to Bitcoin.)")."</th><th>Amount".help("BTC sent by this output")."</th><th>To address".help("Addresses this output was sent to")."</th><th>Type".help("The type of the output. Bitcoin only sends a few different types of transactions. 'Address' sends to an Bitcoin address. 'Pubkey' sends directly to a public key, and is used for IP transactions and generations. 'Strange' is an unusual transaction not created by the official Bitcoin client.")."</th><th>ScriptPubKey".help("This script specifies the conditions that must be met by someone attempting to redeem this output. Usually it contains a hash160 (Bitcoin address) or a public key.")."</th></tr>\n";
-        // prepare query
-
-        SQLPrepare("redeemed", "SELECT id, encode(tx, 'hex') AS tx FROM inputs WHERE prev = decode('$hash', 'hex') AND index = $1");
-        // go through outputs
-        while($oneoutput)
-        {
-            $index = $oneoutput["index"];
-            echo "<tr>\n";
-            $redeemed = SQL::d(SQLPrepare::execute("redeemed", array($index)));
-            if($redeemed !== false)
-            {
-                $rtx = $redeemed["tx"];
-                $rid = $redeemed["id"];
-                $rtxtrunc = "<a name = \"o$index\" href=\"{$rootpath}tx/$rtx#i$rid\">".substr($rtx, 0, 12)."...</a>";
-            }
-            else
-            {
-                $rtxtrunc = "<a name = \"o$index\">Not yet redeemed</a>";
-            }
-            echo "<td>$index</td>\n";
-            echo "<td>$rtxtrunc</td>\n";
-            $value = removeTrailingZeroes($oneoutput["value"]);
-            echo "<td>$value</td>\n";
-            $address = $oneoutput["address"];
-            if(is_null($address))
-            {
-                $address = "Unknown";
-            }
-            else
-            {
-                $address = "<a href=\"{$rootpath}address/$address\">$address</a>";
-            }
-            echo "<td>$address</td>\n";
-            echo "<td>{$oneoutput["type"]}</td>\n";
-            echo "<td><div class = \"hugeCell\">{$oneoutput["scriptpubkey"]}</div></td>\n";
-            $oneoutput = SQL::d($outputs);
-            echo "</tr>\n";
-        }
-        echo "</table>\n";
-        
-        Cache::put("tx".md5($req->params[0]), ob_get_flush(), 300, true);
     }
 
     if($req->page == "address")
