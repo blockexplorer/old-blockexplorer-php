@@ -102,6 +102,10 @@ function thousands($num)
 	return $return;
 }
 
+function smarty_modifier_thousands($value) {
+    return thousands($value);
+}
+
 class Error extends Exception { } 
 class BadRequest extends Error { }
 
@@ -210,8 +214,6 @@ function view_default($vars, $page) {
 }
 
 function model_home(&$vars, $params) {
-    $vars['title'] = "Home";
-
     $vars['checkpoint'] = CHECKPOINT;
     $vars['keywords'] = array();
     
@@ -234,7 +236,6 @@ function model_home(&$vars, $params) {
 }
 
 function model_txstats(&$vars, $params) {
-    $vars['title'] = "Transaction stats (temporary)";
     $vars['keywords'] = array();
 
     $latestblock = SQL::s("SELECT max(number) AS latest FROM blocks;");
@@ -263,6 +264,81 @@ function model_txstats(&$vars, $params) {
                                   ORDER BY outputs.id DESC LIMIT 20;"); 
 
     return array(60, $latestblock);
+}
+
+function model_block(&$vars, $params) {
+    $block_hash = trim(strtolower(remove0x($params[0])));
+    if(!preg_match("/^[0-9a-f]{64}$/", $block_hash))
+        throw new BadRequest("Not in correct format");
+    
+    // Get block data
+    $block = SQL::d("SELECT encode(prev, 'hex') AS prev, 
+                                   number, 
+                                   encode(root, 'hex') AS root, 
+                                   bits, 
+                                   nonce, 
+                                   time AT TIME ZONE 'UTC' AS time, 
+                                   transactions AS count, 
+                                   totalvalue, 
+                                   size 
+
+                            FROM blocks 
+
+                            WHERE hash = decode($1, 'hex');", $block_hash);
+    if(!$block) 
+        throw new Error("No such block", 404);
+
+    $next = SQL::s("SELECT encode(hash, 'hex') 
+                    FROM blocks 
+                    WHERE prev = decode($1, 'hex');", array($block_hash));
+
+    if($next)
+        Cache::handle_client_side_etag();
+
+    $vars['keywords'] = array("block", $block["number"], $block_hash);
+    $vars['block'] = $block;
+    $vars['block_hash'] = $block_hash;
+    $vars['next'] = $next;
+
+    // process data
+    $vars['difficulty'] = bcdiv("26959535291011309493156476344723991336010898738574164086137773096960", 
+                                (string)decodeCompact($block["bits"]), 6);
+
+
+    // special transactions
+    $vars['query_special_tx'] = SQL("SELECT encode(tx, 'hex') AS hash 
+                                     FROM special 
+                                     WHERE block = decode($1, 'hex')", $block_hash);
+   
+
+    // prepare SQL
+    $vars['query_tx'] = SQL("SELECT encode(hash, 'hex') AS hash, 
+                                    abs(fee) AS fee, size 
+                             FROM transactions 
+                             WHERE block = decode($1, 'hex') 
+                             ORDER BY id;", $block_hash);
+
+    SQLPrepare("tx_outputs", "SELECT outputs.value AS value, 
+                                     keys.address AS address 
+                              FROM outputs LEFT JOIN keys ON 
+                                   (keys.hash160 = outputs.hash160) 
+                              WHERE outputs.tx = decode($1, 'hex') 
+                              ORDER BY outputs.id;");
+
+    SQLPrepare("tx_inputs", "SELECT inputs.value AS value, 
+                                    keys.address AS address 
+                             FROM inputs LEFT JOIN keys ON 
+                                  (keys.hash160 = inputs.hash160) 
+                             WHERE inputs.tx = decode($1, 'hex') 
+                             ORDER BY inputs.id;");
+
+    
+    return;
+
+    if($next)
+        Cache::put("block".md5($req->params[0]), ob_get_flush(), 300, true);
+    else
+        Cache::put("block".md5($req->params[0]), ob_get_flush(), 300);
 }
 
 function redirect_search($vars, $params) {
@@ -411,55 +487,6 @@ function old_app_explore($req) {
         goto headerend;
     }
 
-    // /Block
-    if($req->page == "block")
-    {
-        $cache = Cache::get($req->page . md5($req->params[0]));
-        if($cache !== false)
-        {
-            echo $cache;
-            goto end;
-        }
-        ob_start();
-        
-        // Get hash
-        $block = trim(strtolower(remove0x($req->params[0])));
-        if(!preg_match("/^[0-9a-f]{64}$/", $block))
-        {
-            error("Not in correct format", 400);
-            goto headerend;
-        }
-        
-        // Get block data
-        $result = SQL::d("SELECT encode(prev, 'hex') AS prev, 
-                                        number, 
-                                        encode(root, 'hex') AS root, 
-                                        bits, 
-                                        nonce, 
-                                        time AT TIME ZONE 'UTC' AS time, 
-                                        transactions AS count, 
-                                        totalvalue, 
-                                        size 
-
-                                 FROM blocks 
-
-                                 WHERE hash = decode($1, 'hex');", $block);
-        if(!$result || is_null($result))
-        {
-            error("No such block", 404);
-            goto headerend;
-        }
-        $next = SQL::s("SELECT encode(hash, 'hex') 
-                        FROM blocks 
-                        WHERE prev = decode($1, 'hex');", array($block));
-
-        if($next)
-            Cache::handle_client_side_etag();
-
-        $title = "Block {$result["number"]}";
-        $description = "List of transactions in Bitcoin block #{$result["number"]}.";
-        $keywords = "block, {$result["number"]}, $block";
-    }
     // /Transaction
     if($req->page == "tx")
     {
@@ -993,180 +1020,6 @@ EOD;
         {
             echo "<p>Note: results may not be complete if the search would return more than 100 items.</p>\n";
         }
-    }
-
-    if($req->page == "block")
-    {
-        // process data
-        $target = (string)decodeCompact($result["bits"]);
-        $difficulty = thousands(removeTrailingZeroes(bcdiv("26959535291011309493156476344723991336010898738574164086137773096960", $target, 6)));
-        $prev = $result["prev"];
-        $totalvalue = removeTrailingZeroes($result["totalvalue"]);
-        $transactioncount = $result["count"];
-        
-        echo "<h1>Block {$result["number"]}".help("The number is a count of the number of blocks up to this one, with the genesis block being 0.")."</h1>\n";
-        $shortlink = "{$rootpath}b/{$result['number']}";
-        echo "<div id = \"shortlink\">Short link: <a href = \"$shortlink\">".$req->scheme.HOSTNAME."$shortlink</a></div>";
-        echo "<ul class = \"infoList\">\n";
-        echo "<li>Hash".help("Full hash of this block. Sometimes this is expressed without the leading zeroes.").": $block</li>\n";
-        if($prev != "0000000000000000000000000000000000000000000000000000000000000000")
-        {
-            echo "<li>Previous block".help("Every block builds on another, forming a chain. This is the full hash of the previous block.").": <a href=\"{$rootpath}block/$prev\">$prev</a></li>\n";
-        }
-        if($next != false && !is_null($next))
-        {
-            echo "<li>Next block".help("The full hash of the block that will build onto this one. This field is not included in real blocks.").": <a href=\"{$rootpath}block/$next\">$next</a></li>\n";
-        }
-        echo "<li>Time".help("UTC time included in this block. The network's time must not be relied upon for precision, but it is generally accurate.").": {$result["time"]}</li>\n";
-        echo "<li>Difficulty".help("The difficulty of producing blocks at the time this block was created. Same as Bitcoin's getdifficulty.").": $difficulty (\"Bits\"".help("This is the compact form of the 256-bit target used when generating. This is included in actual blocks. The difficulty number is derived from this.").": ".strtolower(encodeHex($result["bits"])).")</li>\n";
-        echo "<li>Transactions".help("Number of transactions in this block (listed below)").": $transactioncount</li>\n";
-        echo "<li>Total BTC".help("Total BTC sent through this block, including fees").": $totalvalue</li>\n";
-        $properbytes = $result["size"];
-        if($properbytes<1000)
-        {
-            $properbytes = "$properbytes bytes";
-        }
-        else
-        {
-            $properbytes = $properbytes/1000;
-            $properbytes = "$properbytes kilobytes";
-        }
-        echo "<li>Size".help("The data size of this block. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte = 1000 bytes (this is how Bitcoin does it).").": $properbytes</li>\n";
-        echo "<li>Merkle root".help("The root hash in a hash tree of all transactions.").": {$result["root"]}</li>\n";
-        echo "<li>Nonce".help("When generating, Bitcoin starts this number at 1 and increments for each hash attempt.").": {$result["nonce"]}</li>\n";
-        echo "<li><a href=\"{$rootpath}rawblock/$block\">Raw block</a>".help("Almost the same as getblock's output.")."</li>\n";
-        echo "</ul>";
-        
-        echo "<h3>Transactions</h3>\n";
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Transaction".help("Truncated hash of this transaction")."</th><th>Fee".help("Fee given - the difference between total input value and total output value. This goes to the generator of the block.")."</th><th>Size (kB)".help("The data size of this transaction. This is the number that Bitcoin uses for block size limits and fees -- it may not be the actual size on disk. 1 kilobyte = 1000 bytes (this is how Bitcoin does it).")."</th><th>From (amount)".help("List of all addresses that appear in an input. Whoever sent this transaction owns all of these addresses.")."</th><th>To (amount)".help("A list of all addresses that have received bitcoins from this transaction")."</th></tr>\n";
-        
-        // prepare SQL
-
-        SQLPrepare("transactions", "SELECT encode(hash, 'hex') AS hash, abs(fee) AS fee, size FROM transactions WHERE block = decode($1, 'hex') ORDER BY id;");
-
-        SQLPrepare("outputs", "SELECT outputs.value AS value, keys.address AS address FROM outputs LEFT JOIN keys ON keys.hash160 = outputs.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id;");
-
-        SQLPrepare("inputs", "SELECT inputs.value AS value, keys.address AS address FROM inputs LEFT JOIN keys ON keys.hash160 = inputs.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;");
-        
-        $coinbase = true;
-        
-        // special transactions
-        $result = SQL("SELECT encode(tx, 'hex') AS hash 
-                       FROM special WHERE block = decode($1, 'hex')", array($block));
-
-        $row = SQL::d($result);
-        while($row)
-        {
-            $hash = $row["hash"];
-            $hashtrunc = "<a href=\"{$rootpath}tx/$hash\">".substr($hash, 0, 10)."...</a>";
-            echo "<tr><td colspan = \"5\">This transaction is an exact copy of $hashtrunc. This is usually caused by flawed custom miner code that rarely changes the keys used by generations, and is therefore likely to produce a generation transaction with the exact same data as a previous one by the same person. The network sees duplicate transactions as the same: only one can be redeemed.</td></tr>\n";
-            $coinbase = false;
-            $row = SQL::d($result);
-        }
-        
-        // get list of transactions
-        $result = SQLPrepare::execute("transactions", array($block));
-
-        $row = SQL::d($result);
-        
-        // go through each transaction
-        while($row)
-        {
-        echo "<tr>\n";
-            $hash = $row["hash"];
-            // /// UPDATE
-            $hashtrunc = "<a href=\"{$rootpath}tx/$hash\">".substr($hash, 0, 10)."...</a>";
-            $fee = removeTrailingZeroes($row["fee"]);
-            if($coinbase == true)
-            {
-                $totalfee = $fee;
-                $fee = "0";
-            }
-            $size = round($row["size"]/1000, 3);
-            echo "<td>$hashtrunc</td><td>$fee</td><td>$size</td>\n";
-            
-            // collect inputs
-            $inputs = SQLPrepare::execute("inputs", array($hash));
-            $oneinput = SQL::d($inputs);
-            echo "<td><ul class = \"infoList\">\n";
-            // go through inputs
-            while($oneinput)
-            {
-                // parse and linkify address
-                $address = $oneinput["address"];
-                if(is_null($address))
-                {
-                    $address = "Unknown";
-                }
-                else
-                {
-                    $address = "<a href=\"{$rootpath}address/$address\">$address</a>";
-                }
-                
-                // parse value
-                $value = removeTrailingZeroes($oneinput["value"]);
-                if(is_null($value))
-                {
-                    error("No value found", 500);
-                    goto end;
-                }
-                if($coinbase == true)
-                {
-                    $address = "Generation";
-                    $value = "$value + $totalfee total fees";
-                }
-                
-                echo "<li>$address: $value</li>\n";
-                
-                $oneinput = SQL::d($inputs);
-            }
-            echo "</ul></td>\n";
-            
-            // collect outputs
-            $outputs = SQLPrepare::execute("outputs", array($hash));
-            $oneoutput = SQL::d($outputs);
-            echo "<td><ul class = \"infoList\">\n";
-            // go through outputs
-            while($oneoutput)
-            {
-                // parse and linkify addresses
-                $address = $oneoutput["address"];
-                if(is_null($address))
-                {
-                    $address = "Unknown";
-                }
-                else
-                {
-                    $address = "<a href=\"{$rootpath}address/$address\">$address</a>";
-                }
-                
-                // parse value
-                $value = removeTrailingZeroes($oneoutput["value"]);
-                if(is_null($value))
-                {
-                    error("No value found", 500);
-                    goto end;
-                }
-                
-                echo "<li>$address: $value</li>\n";
-                
-                $oneoutput = SQL::d($outputs);
-            }
-            echo "</ul></td>\n";
-            
-            $coinbase = false;
-            
-            echo "</tr>\n";
-            
-            $row = SQL::d($result);		
-        }
-        
-        echo "</table>\n";
-        if($next)
-            Cache::put("block".md5($req->params[0]), ob_get_flush(), 300, true);
-        else
-            Cache::put("block".md5($req->params[0]), ob_get_flush(), 300);
     }
 
     if($req->page == "tx")

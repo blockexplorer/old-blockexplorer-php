@@ -45,7 +45,7 @@
 {/if}
 {/block}
 
-<title>{block "title"}{/block} - Bitcoin Block Explorer</title>
+<title>{block "title"}{$title}{/block} - Bitcoin Block Explorer</title>
 
 <style type="text/css">
     .infoList {

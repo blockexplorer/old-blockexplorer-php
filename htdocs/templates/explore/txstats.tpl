@@ -1,7 +1,7 @@
 {extends "explore.tpl"}
 {block "description" prepend}{assign "description" "Largest transactions and strange transactions."}{/block}
 
-{block "title"}Example title{/block}
+{block "title"}Transaction stats (temporary){/block}
 {block "body"}
 
 <p>Because getting this data is currently very slow, this data has been moved here from the front page until I rewrite my database code.</p>
