@@ -38,7 +38,7 @@ ton of processing to make certain tasks, such as tracking transactions, easier. 
 {while $row = SQL::d($query)}
 <tr>
 <td><a href="{$rootpath}block/{$row.hash}">{$row.number}</a></td>
-<td><a href="{$rootpath}block/{$row.hash}">{$row.hash|lzerotrim|truncate:10}</a></td>
+<td><a href="{$rootpath}block/{$row.hash}">{$row.hash|lzerotrim|truncate:13}</a></td>
 <td>{$row.time}</td>
 <td>{$row.count}</td>
 <td>{$row.sum|rzerotrim}</td>

@@ -18,7 +18,7 @@
 
 {while $tx=SQL::d($query_largest)}
 <tr>
-<td>{$tx.hash}</td>
+<td>{$tx.hash|truncate:23}</td>
 <td>{$tx.totalvalue|rzerotrim}</td>
 <td><a href="{$rootpath}block/{$tx.blockhash}">{$tx.blocknum}</a></td>
 <td>{$tx.time}</td>
@@ -38,7 +38,7 @@
 
 {while $tx=SQL::d($query_strange)}
 <tr>
-<td><a href="{$rootpath}tx/{$tx.txhash}">{$tx.txhash|truncate:20}</a></td>
+<td><a href="{$rootpath}tx/{$tx.txhash}">{$tx.txhash|truncate:23}</a></td>
 <td><a href="{$rootpath}block/{$tx.blockhash}">{$tx.blocknum}</a></td>
 <td>{$tx.time}</td>
 </tr>

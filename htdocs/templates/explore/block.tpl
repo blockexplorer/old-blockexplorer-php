@@ -71,7 +71,7 @@
 {assign "coinbase" 0}
 <tr>
 <td colspan="5">
-This transaction is an exact copy of <a href="{$rootpath}tx/{$tx.hash}>{$tx.hash|truncate:10}</a>
+This transaction is an exact copy of <a href="{$rootpath}tx/{$tx.hash}>{$tx.hash|truncate:13}</a>
 This is usually caused by flawed custom miner code that rarely changes the keys used by generations, and is therefore likely to produce a generation transaction with the exact same data as a previous one by the same person. The network sees duplicate transactions as the same: only one can be redeemed.
 </td>
 </tr>
