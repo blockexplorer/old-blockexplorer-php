@@ -4,7 +4,6 @@ require_once 'encode.inc';
 require_once 'rpc.inc';
 require_once 'sql.inc';
 require_once 'cache.inc';
-require_once 'utils.inc';
 require_once 'Smarty.class.php' ;
 
 function getblockcount()
@@ -557,7 +556,7 @@ function page_avgtxnumber($params)
 
 function page_getreceivedbyaddress($params)
 {
-    $minconf = (int)get($params, 1, 1);
+    $minconf = (int)(isset($params[1]) ? $params[1] : 1);
     if($minconf <= 0)
         throw new BadRequest("you must use an integer above 0 for minconf");
 
@@ -640,7 +639,7 @@ function page_addressfirstseen($params)
 
 function page_nethash($params)
 {
-    $step = (int)get($params, 0, 144);
+    $step = (int)(isset($params[0]) ? $params[0] : 144);
     if(!$step || ! ($step >= 5 && $step <= 10000))
         throw new BadRequest("invalid step (must be between 5 - 10000");
 
