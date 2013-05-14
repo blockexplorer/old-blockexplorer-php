@@ -430,6 +430,136 @@ function model_tx(&$vars, $params) {
     return array(300, true);
 }
 
+function model_address(&$vars, $params) {
+        // get address
+        $address = $params[0];
+        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address)>36 || ! Address::checkAddress($address))
+            throw new BadRequest("Invalid address");
+
+        $hash160 = strtolower(addressToHash160($address));
+
+        $vars['address'] = $address;
+        $vars['hash160'] = $hash160;
+
+        $vars['keywords'] = array("address", $address, $hash160);
+
+        $keyinfo = SQL::d("SELECT encode(pubkey, 'hex') AS pubkey, 
+                                  encode(firstseen, 'hex') AS firstseen 
+                           FROM keys 
+                           WHERE hash160 = decode($1, 'hex');", $hash160);
+
+        if($keyinfo)
+            $blockinfo = SQL::d("SELECT number, 
+                                        time AT TIME ZONE 'UTC' AS time 
+                                 FROM blocks 
+                                 WHERE hash=decode($1, 'hex');", $keyinfo['firstseen']);
+        else
+            $blockinfo = null;
+
+        $vars['keyinfo'] = $keyinfo;
+        $vars['blockinfo'] = $blockinfo;
+
+        $vars['query_txs'] = SQL("SELECT inputs.type AS txtype, 
+                                         'debit' AS type, 
+                                         encode(inputs.tx, 'hex') AS tx, 
+                                         inputs.value AS value, inputs.id AS id, 
+                                         encode(transactions.block, 'hex') AS block, 
+                                         blocks.number AS blocknum, 
+                                         transactions.id AS tid, 
+                                         inputs.index AS index, 
+                                         blocks.time AT TIME ZONE 'UTC' AS time 
+                                         
+                                  FROM inputs, transactions, blocks 
+
+                                  WHERE inputs.hash160 = decode($1, 'hex') AND 
+                                        inputs.tx = transactions.hash AND 
+                                        transactions.block = blocks.hash 
+                                        
+                                  UNION 
+                                  
+                                  SELECT outputs.type AS txtype, 
+                                         'credit' AS type, 
+                                         encode(outputs.tx, 'hex') AS tx, 
+                                         outputs.value AS value, outputs.index AS id, 
+                                         encode(transactions.block, 'hex') AS block, 
+                                         blocks.number AS blocknum, 
+                                         transactions.id AS tid, 
+                                         outputs.index AS index, 
+                                         blocks.time AT TIME ZONE 'UTC' AS time 
+                                               
+                                  FROM outputs, transactions, blocks 
+                                  
+                                  WHERE outputs.hash160 = decode($1, 'hex') AND 
+                                        outputs.tx = transactions.hash AND 
+                                        transactions.block = blocks.hash 
+                                        
+                                  ORDER BY blocknum, type, tid, index;", 
+                                  
+                                  $hash160);
+
+        SQLPrepare("tx_outputs", "SELECT DISTINCT outputs.type AS type, 
+                                         outputs.value AS value, 
+                                         outputs.id, 
+                                         keys.address AS address 
+
+                                  FROM outputs LEFT JOIN keys ON 
+                                       (outputs.hash160 = keys.hash160) 
+
+                                  WHERE outputs.tx = decode($1, 'hex') 
+                                  ORDER BY outputs.id"); 
+        
+        SQLPrepare("tx_inputs", "SELECT DISTINCT inputs.value AS value, 
+                                        inputs.id, 
+                                        inputs.type AS type, 
+                                        keys.address AS address 
+
+                                 FROM inputs LEFT JOIN keys ON 
+                                      (inputs.hash160 = keys.hash160) 
+
+                                 WHERE inputs.tx = decode($1, 'hex') 
+                                 ORDER BY inputs.id;"); 
+        
+        // etag token
+        $latest_tx_block = null;
+
+        $query_txs = $vars['query_txs'];
+        if($keyinfo) {
+
+            SQL::seek($query_txs, SQL::count($query_txs) - 1);
+            $latest_tx_block = SQL::d($query_txs)["blocknum"];
+            SQL::seek($query_txs, 0);
+        }
+
+        $received_txs=0;
+        $received_btc=0;
+
+        $sent_txs=0;
+        $sent_btc=0;
+
+        while($tx = SQL::d($query_txs)) {
+
+            if($tx["type"] == "credit") {
+                $received_txs++;
+                $received_btc = bcadd($received_btc, $tx['value'], 8);
+            }
+            elseif($tx['type'] == 'debit') {
+                $sent_txs++;
+                $sent_btc = bcadd($sent_btc, $tx['value'], 8);
+            }
+
+        }
+
+        $vars['received_txs'] = $received_txs;
+        $vars['received_btc'] = $received_btc;
+
+        $vars['sent_txs'] = $sent_txs;
+        $vars['sent_btc'] = $sent_btc;
+            
+        SQL::seek($query_txs, 0);
+
+        return array(30, $latest_tx_block);
+}
+
 function redirect_search($vars, $params) {
 
     $rootpath = $vars['rootpath'];
@@ -576,108 +706,6 @@ function old_app_explore($req) {
         goto headerend;
     }
 
-    // /Address
-    if($req->page == "address")
-    {
-        $cachename = $req->params[0];
-        $cache = Cache::get("addr" . md5($cachename));
-        if($cache !== false)
-        {
-            echo $cache;
-            goto end;
-        }
-        ob_start();
-
-        $knownaddress = false;
-        // get address
-        $address = $req->params[0];
-        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address)>36 || ! Address::checkAddress($address))
-        {
-            error("Invalid address", 400);
-            goto headerend;
-        }
-        $insertrss = "{$req->scheme}".HOSTNAME."{$rootpath}rssa/$address.xml";
-        $hash160 = strtolower(addressToHash160($address));
-        $keyinfo = SQL::d("SELECT encode(pubkey, 'hex') AS pubkey, 
-                                  encode(firstseen, 'hex') AS firstseen 
-                           FROM keys 
-                           WHERE hash160 = decode($1, 'hex');", $hash160);
-
-        $pubkey = $keyinfo["pubkey"];
-        if($pubkey === false || is_null($pubkey))
-        {
-            $pubkey = "Unknown (not seen yet)";
-        }
-        $firstseen = $keyinfo["firstseen"];
-        if($firstseen !== false && !is_null($firstseen))
-        {
-            $knownaddress = true;
-            $blockinfo = SQL::d("SELECT number, 
-                                        time AT TIME ZONE 'UTC' AS time 
-                                 FROM blocks 
-                                 WHERE hash = decode($1, 'hex');", $firstseen);
-            $blocknum = $blockinfo["number"];
-            $blocktime = $blockinfo["time"];
-            $blockstring = "<a href=\"{$rootpath}block/$firstseen\">Block $blocknum</a> ($blocktime)";
-        }
-        else
-        {
-            $blockstring = "Never used on the network (as far as I can tell)";
-        }
-        $title = "Address $address";
-        $description = "List of transactions involving Bitcoin address $address.";
-        $keywords = "address, $address, $hash160";
-        
-        $mytxs = SQL("SELECT inputs.type AS txtype, 'debit' AS type, 
-                             encode(inputs.tx, 'hex') AS tx, 
-                             inputs.value AS value, inputs.id AS id, 
-                             encode(transactions.block, 'hex') AS block, 
-                             blocks.number AS blocknum, 
-                             transactions.id AS tid, 
-                             inputs.index AS index, 
-                             blocks.time AT TIME ZONE 'UTC' AS time 
-                             
-                      FROM inputs, transactions, blocks 
-
-                      WHERE inputs.hash160 = decode($1, 'hex') AND 
-                            inputs.tx = transactions.hash AND 
-                            transactions.block = blocks.hash 
-                            
-                      UNION SELECT outputs.type AS txtype, 'credit' AS type, 
-                                   encode(outputs.tx, 'hex') AS tx, 
-                                   outputs.value AS value, outputs.index AS id, 
-                                   encode(transactions.block, 'hex') AS block, 
-                                   blocks.number AS blocknum, 
-                                   transactions.id AS tid, 
-                                   outputs.index AS index, 
-                                   blocks.time AT TIME ZONE 'UTC' AS time 
-                                   
-                      FROM outputs, transactions, blocks 
-                      
-                      WHERE outputs.hash160 = decode($1, 'hex') AND 
-                            outputs.tx = transactions.hash AND 
-                            transactions.block = blocks.hash 
-                            
-                      ORDER BY blocknum, type, tid, index;", 
-                      
-                      $hash160);
-
-        $txlimit = SQL::count($mytxs)-1;
-        $txcounter = 0;
-
-        // cache
-        if($knownaddress)
-        {
-            SQL::seek($mytxs, $txlimit);
-            $latesttx = SQL::d($mytxs)["blocknum"];
-            SQL::seek($mytxs, 0);
-        }
-        else
-        {
-            $latesttx = -1;
-        }
-        Cache::handle_client_side_etag($latesttx);
-    }
     if($req->page == "nojshelp")
     {
         Cache::handle_client_side_etag();
@@ -1020,196 +1048,6 @@ EOD;
         {
             echo "<p>Note: results may not be complete if the search would return more than 100 items.</p>\n";
         }
-    }
-
-    if($req->page == "address")
-    {
-        $currentaddress = $address;
-        echo "<h1>Address $address</h1>\n";
-        echo "<ul class = \"infoList\">\n";
-        echo "<li>First seen".help("The first block this address was used in.").": $blockstring</li>\n";
-        
-        // loop through our transactions. This is all echoed later.
-        $balance = "0";
-
-        SQLPrepare("outputcounter", "SELECT DISTINCT outputs.type AS type, outputs.value AS value, outputs.id, keys.address AS address FROM outputs LEFT JOIN keys ON outputs.hash160 = keys.hash160 WHERE outputs.tx = decode($1, 'hex') ORDER BY outputs.id"); 
-        
-        SQLPrepare("inputcounter", "SELECT DISTINCT inputs.value AS value, inputs.id, inputs.type AS type, keys.address AS address FROM inputs LEFT JOIN keys ON inputs.hash160 = keys.hash160 WHERE inputs.tx = decode($1, 'hex') ORDER BY inputs.id;"); 
-        
-        $echothis = "";
-        $totalcredits = 0;
-        $totalcredit = "0";
-        $totaldebits = 0;
-        $totaldebit = "0";
-        $stopcaching = false;
-        while($txcounter <= $txlimit)
-        {
-            // limits
-            if($totalcredits + $totaldebits > 5000 && !$stopcaching)
-            {
-                ob_end_clean();
-                $stopcaching = true;
-                if(ADDRQUIT)
-                {
-                    senderror(503);
-                    header("Content-type: text/plain");
-                    echo("ERROR: Address ledger is extremely large. Contact me if you really need the data.");
-                    die();
-                }
-            }
-            $onetx = SQL::d($mytxs);
-
-            $txcounter++;
-            $echothis.= "<tr>\n";
-            
-            // get value, type, and whether Credit OR Debit (echoed a little later)
-            $value = removeTrailingZeroes($onetx["value"]);
-            $type = $onetx["txtype"];
-            if($onetx["type"] == "credit")
-            {
-                $cord = "Received";
-                $totalcredits++;
-                $totalcredit = bcadd($totalcredit, $value, 8);
-            }
-            else
-            {
-                $cord = "Sent";
-                $totaldebits++;
-                $totaldebit = bcadd($totaldebit, $value, 8);
-            }
-            
-            // get tx info
-            $tx = $onetx["tx"];
-            $index = $onetx["id"];
-            if($cord == "Received")
-            {
-                $anchorname = substr($tx, 0, 16)."o$index";
-                $txtrunc = "<a name = \"$anchorname\" href=\"{$rootpath}tx/$tx#o$index\">".substr($tx, 0, 10)."...</a>";
-            }
-            else
-            {
-                $anchorname = substr($tx, 0, 16)."i$index";
-                $txtrunc = "<a name = \"$anchorname\" href=\"{$rootpath}tx/$tx#i$index\">".substr($tx, 0, 10)."...</a>";
-            }
-            $echothis.= "<td>$txtrunc</td>\n";
-            
-            // get block info
-            $block = $onetx["block"];
-            $txtime = $onetx["time"];
-            $blocknum = $onetx["blocknum"];
-            $blockstring = "<a href=\"{$rootpath}block/$block\">Block $blocknum</a> ($txtime)";
-            $echothis.= "<td>$blockstring</td>\n";
-            
-            $echothis.= "<td>$value</td>\n";
-            
-            // /// /// /transaction loop. Echoed just a bit later
-            // loop through counter ins if out.
-            $superechothis = "";
-            $superechothis.= "<td><ul class = \"infoList\">\n";
-            if($cord == "Received")
-            {
-                $counter = SQLPrepare::execute("inputcounter", array($tx));
-                $thisio = SQL::d($counter);
-                while($thisio)
-                {
-                    $address = $thisio["address"];
-                    $addressstring = "<a href=\"{$rootpath}address/$address\">$address</a>";
-                    if(is_null($address) || $address === false || $address == "Unknown")
-                    {
-                        $addressstring = "Unknown";
-                        if($thisio["type"] == "Generation")
-                        {
-                            $addressstring = "Generation";
-                        }
-                    }
-                    if($address == $currentaddress)
-                    {
-                    $addressstring = "$address";
-                    }
-                    $superechothis.= "<li>$addressstring</li>\n";
-                    $thisio = SQL::d($counter);
-                }
-            }
-            else // loop through counter outs if in
-            {
-                $type = "";
-                $counter = SQLPrepare::execute("outputcounter", array($tx));
-                $thisio = SQL::d($counter);
-                while($thisio)
-                {
-                    // type determination
-                    $statedtype = $thisio["type"];
-                    if($type == "")
-                    {
-                        $type = $statedtype;
-                    }
-                    else
-                    {
-                        if($type != $statedtype)
-                        {
-                            $type = "Mixed types";
-                        }
-                    }
-                    $address = $thisio["address"];
-                    $addressstring = "<a href=\"{$rootpath}address/$address\">$address</a>";
-                    if(is_null($address) || $address === false || $address == "Unknown")
-                    {
-                        $addressstring = "Unknown";
-                    }
-                    if($address == $currentaddress)
-                    {
-                    $addressstring = "$address";
-                    }
-                    $superechothis.= "<li>$addressstring</li>\n";
-                    $thisio = SQL::d($counter);
-                }
-            }
-            $superechothis.= "</ul></td>\n";
-            // /// /// /end tx loop
-            
-            // resume addr info
-            $echothis.= "<td>$cord: $type</td>\n";
-            // reintegrate ledger
-            $echothis .= $superechothis;
-            
-            // calculate running balance
-            if($cord == "Sent")
-            {
-                $balance = removeTrailingZeroes(bcsub($balance, $value, 8));
-            }
-            else
-            {
-                $balance = removeTrailingZeroes(bcadd($balance, $value, 8));
-            }
-            $echothis.= "<td>$balance</td>\n";
-            $echothis.= "</tr>\n";
-        }
-        
-        // addr info resumes
-        $totalcredit = thousands(removeTrailingZeroes($totalcredit));
-        $totaldebit = thousands(removeTrailingZeroes($totaldebit));
-        echo "<li>Received transactions: $totalcredits</li>";
-        echo "<li>Received BTC: $totalcredit</li>";
-        echo "<li>Sent transactions: $totaldebits</li>";
-        echo "<li>Sent BTC: $totaldebit</li>";
-        echo "<li>Hash160".help("The hash160 is a hash of the public key. Bitcoin uses these hashes internally - transactions don't contain Bitcoin addresses directly. Bitcoin addresses contain a base58-encoded hash160, along with a version and a check code.").": $hash160</li>\n";
-        echo "<li>Public key".help("It's impossible to determine the public key from a Bitcoin address, but if the public key was ever used on the network, it is listed here.").": <div class = \"hugeData\">$pubkey</div></li>\n";
-        echo "</ul>\n";
-        if($currentaddress == "1Cvvr8AsCfbbVQ2xoWiFD1Gb2VRbGsEf28")
-        {
-            echo "<p><i>Thank you ! </i></p>";
-        }
-        
-        // echo ledger
-        echo "<h3>Ledger".help("A list of all transactions involving this address, with the oldest listed first.")."</h3>\n";
-        echo '<p>Note: While the last "balance" is the accurate number of bitcoins available to this address, it is likely not the balance available to this person. Every time a transaction is sent, some bitcoins are usually sent back to yourself <i>at a new address</i> (not included in the Bitcoin UI), which makes the balance of a single address misleading. See <a href="https://en.bitcoin.it/wiki/Transactions">the wiki</a> for more info on transactions.</p>'."\n";
-        echo "<table class = \"txtable\">\n";
-        echo "<tr><th>Transaction".help("Truncated transaction hash")."</th><th>Block".help("Block this transaction appeared in")."</th><th>Amount".help("Number of BTC sent or received")."</th><th>Type".help("The type of the output. Bitcoin only sends a few different types of transactions. 'Address' sends to an Bitcoin address. 'Pubkey' sends directly to a public key, and is used for IP transactions and generations. 'Strange' is an unusual transaction not created by the official Bitcoin client. It's also possible for transactions to have several different types of outputs.")."</th><th>From/To".help("The addresses this was received from or sent to. When sending, Bitcoin usually sends some bitcoins back to a brand new address that you own.")."</th><th>Balance".help("Balance as of this transaction. The last balance is the current balance of this address.")."</th></tr>\n";
-        echo $echothis;
-        echo "</table>\n";
-        
-        if($stopcaching)
-            Cache::put("addr".md5($cachename), ob_get_flush(), 30, $latesttx, 0);
     }
 
     end:

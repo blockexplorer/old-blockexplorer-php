@@ -2,6 +2,7 @@
    "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
+{block "head"}
 <script type="text/javascript">
 {literal}
   var _gaq=_gaq || [];
@@ -25,11 +26,6 @@
 {/literal}
 </script>
 <link rel="shortcut icon" href="/favicon.ico">
-
-{if isset($insertrss)}
-<link rel="alternate" type="application/rss+xml" title="RSS" href="{$insertrss}">
-<meta http-equiv="Content-type" content="text/html;charset=ISO-8859-1">
-{/if}
 
 {if isset($keywords)}
 {if $keywords}
@@ -83,6 +79,7 @@
         cursor: help;
     }
 </style>
+{/block}
 </head>
 <body onLoad="highlightNamedAnchor()">
 {block name="body"}{/block}
