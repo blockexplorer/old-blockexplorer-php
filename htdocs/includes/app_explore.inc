@@ -137,20 +137,20 @@ function app_explore($req)
         $smarty->assign('message', $msg);
         $smarty->display('error.tpl');
 
-        return;
+        die;
     };
 
     $vars = array('rootpath' => ($req->testnet ? "/testnet/" : "/"),
                   'scheme' => $req->scheme,
                   'page' => $req->page);
 
-    $invoke_handler = function($handler) use (&$vars, $req) {
+    $invoke_handler = function($handler) use (&$vars, $req, $handle_error) {
         try {
             return $handler($vars, $req->params);
         } catch (BadRequest $e) {
-            return $handle_error(400, $e->getMessage());
+            $handle_error(400, $e->getMessage());
         } catch (Error $e) {
-            return $handle_error($e->getCode(), $e->getMessage());
+            $handle_error($e->getCode(), $e->getMessage());
         }
     };
 
@@ -169,7 +169,7 @@ function app_explore($req)
             else
                 redirect($redirect);
         } else {
-            return $handle_error(404, "No such page");
+            $handle_error(404, "No such page");
         }
     }
 
