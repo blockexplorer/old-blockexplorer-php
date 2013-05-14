@@ -373,7 +373,7 @@ function page_addresstohash($params)
     if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address) > 300)
         throw new BadRequest("the input is not base58 (or is too large).");
 
-    echo addressToHash160($address);
+    echo Address::toHash160($address);
 
 }
 
@@ -565,7 +565,7 @@ function page_getreceivedbyaddress($params)
     if(!Address::checkAddress($address))
         throw new BadRequest("invalid address");
 
-    $hash160 = addressToHash160($address);
+    $hash160 = Address::toHash160($address);
     $sum = SQL::s("SELECT sum(value) AS sum 
                    FROM outputs 
                    WHERE hash160 = decode($1, 'hex') AND 
@@ -587,7 +587,7 @@ function page_getsentbyaddress($params)
     if(!Address::checkAddress($address)) 
         throw new BadRequest("invalid address");
 
-    $hash160 = addressToHash160($params[0]);
+    $hash160 = Address::toHash160($params[0]);
     $sum = SQL::s("SELECT sum(value) AS sum 
                    FROM inputs 
                    WHERE hash160 = decode($1, 'hex');", $hash160);
@@ -605,7 +605,7 @@ function page_addressbalance($params)
     if(!Address::checkAddress($address))
         throw new BadRequest("invalid address");
 
-    $hash160 = addressToHash160($params[0]);
+    $hash160 = Address::toHash160($params[0]);
     $sent = SQL::s("SELECT sum(value) 
                     FROM inputs 
                     WHERE hash160 = decode($1, 'hex');", $hash160);
@@ -718,7 +718,7 @@ function page_mytransactions($params)
         if(!Address::checkAddress($address))
             throw new BadRequest("One or more addresses are invalid");
 
-        $address = "decode('".addressToHash160($address)."', 'hex')";
+        $address = "decode('".Address::toHash160($address)."', 'hex')";
     }
     // this is safe because addresses were checked above
     $addresses = implode(", ", $addresses);

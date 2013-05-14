@@ -24,14 +24,12 @@ class Address {
 
         $addr = decodeBase58($addr);
         if(strlen($addr) != 50)
-        {
             return false;
-        }
+
         $version = substr($addr, 0, 2);
         if(hexdec($version)>hexdec(self::$version))
-        {
             return false;
-        }
+
         $check = substr($addr, 0, strlen($addr)-8);
         $check = pack("H*" , $check);
         $check = strtoupper(hash("sha256", hash("sha256", $check, true)));
@@ -39,6 +37,12 @@ class Address {
         return $check == substr($addr, strlen($addr)-8);
     }
 
+    static public function toHash160($addr)
+    {
+        $addr = decodeBase58($addr);
+        $addr = substr($addr, 2, strlen($addr)-10);
+        return $addr;
+    }
 }
 
 function decodeHex($hex)
@@ -126,22 +130,10 @@ function encodeBase58($hex)
 	return $return;
 }
 
-function addressToHash160($addr)
-{
-	$addr = decodeBase58($addr);
-	$addr = substr($addr, 2, strlen($addr)-10);
-	return $addr;
-}
-
 function hash160($data)
 {
 	$data = pack("H*" , $data);
 	return strtoupper(hash("ripemd160", hash("sha256", $data, true)));
-}
-
-function pubKeyToAddress($pubkey)
-{
-	return hash160ToAddress(hash160($pubkey));
 }
 
 function remove0x($string)

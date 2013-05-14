@@ -436,7 +436,7 @@ function model_address(&$vars, $params) {
         if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address)>36 || ! Address::checkAddress($address))
             throw new BadRequest("Invalid address");
 
-        $hash160 = strtolower(addressToHash160($address));
+        $hash160 = strtolower(Address::toHash160($address));
 
         $vars['address'] = $address;
         $vars['hash160'] = $hash160;
@@ -838,7 +838,7 @@ function old_app_explore($req) {
             echo "ERROR: invalid address";
             die();
         }
-        $hash160 = addressToHash160($address);
+        $hash160 = Address::toHash160($address);
         $query = SQL("SELECT to_char(blocks.time AT TIME ZONE 'UTC', 'Dy, DD Mon YYYY HH24:MI:SS +0000') AS time, 
                              outputs.value AS value, 
                              outputs.index AS oid, 
