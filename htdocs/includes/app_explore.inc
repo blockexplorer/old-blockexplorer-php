@@ -560,6 +560,14 @@ function model_address(&$vars, $params) {
         return array(30, $latest_tx_block);
 }
 
+function model_nojshelp(&$vars, $params) {
+    
+        $title = "Scriptless help";
+        $vars['help'] = htmlspecialchars(urldecode($params[0]));
+
+        return array(0, true);
+}
+
 function redirect_search($vars, $params) {
 
     $rootpath = $vars['rootpath'];
@@ -704,12 +712,6 @@ function old_app_explore($req) {
         error("Bitcoin Block Explorer will be back shortly.", 503);
         $title = "Maintenance mode";
         goto headerend;
-    }
-
-    if($req->page == "nojshelp")
-    {
-        Cache::handle_client_side_etag();
-        $title = "Scriptless help";
     }
 
     if($req->page == "sitemap")
@@ -995,13 +997,6 @@ EOD;
         goto end;
     }
 
-    if($req->page == "nojshelp") {
-        $req->params[0] = htmlspecialchars(urldecode($req->params[0]));
-        if(strlen($req->params[0])<4000) {
-            echo "<p>These question mark links produce help text when you hover your mouse cursor over them. In case your client does not support displaying HTML title attributes, here is the text for the link you clicked:</p>\n";
-            echo "<p><i>$req->params[0]</i></p>\n";
-        }
-    }
     // /search
     if($req->page == "search")
     {
