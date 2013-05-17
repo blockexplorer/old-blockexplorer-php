@@ -1,37 +1,9 @@
 <?php
 
-define("CHECKPOINT", 128281);
-define("MAINTMODE", false);
-define("ADDRQUIT", true); // false will send broken HTML
-
-// false = errors will be header errors; true = body errors
-$error = false;
-$title = "Error";
-
 require_once 'encode.inc';
 require_once 'sql.inc';
 require_once 'cache.inc';
 require_once 'Smarty.class.php' ;
-
-date_default_timezone_set('UTC');
-function error($message, $status = false)
-{
-    global $error;
-    // also run goto end
-	if($status !== false)
-	{
-		senderror($status);
-	}
-	if($error === false)
-	{
-		$error = $message;
-	}
-	else
-	{
-		echo "<p>".$message."</p>\n";
-		echo "<p>Tell me (theymos) if this is a bug.</p>\n";
-	}
-}
 
 function help($message)
 {
@@ -177,8 +149,7 @@ function app_explore($req)
     $model_func = "model_" . $req->page;
 
     if(!function_exists($model_func))
-        return old_app_explore($req);
-        //$handle_error(404, "No such page");
+        $handle_error(404, "No such page");
 
     $cache_conf = $invoke_handler($model_func);
 
@@ -805,174 +776,4 @@ function model_rssa(&$vars, $params) {
     header("Content-type: application/xml; charset=iso-8859-1");
 
     return array(30, $last_tx['number']);
-}
-
-function old_app_explore($req) {
-    global $error;
-    global $title;
-
-    $config = $req->testnet ? "TestnetConfig" : "Config";
-    SQL::init($config::$dbname);
-    Address::$version = $config::$address_version;
-
-    $rootpath = $req->testnet ? "/testnet/" : "/";
-
-    if(MAINTMODE !== false && $_SERVER["REMOTE_ADDR"] != "192.168.1.1")
-    {
-        error("Bitcoin Block Explorer will be back shortly.", 503);
-        $title = "Maintenance mode";
-        goto headerend;
-    }
-
-    // do not index pages that are not blockexplorer.com
-    if($req->page == "robots.txt" && ( ! isset($senthost) || $senthost != $my_name))
-    {
-        error_log("Deny search engine using odd host $senthost");
-        Cache::handle_client_side_etag();
-        header("Content-type: text/plain");
-        echo "User-agent: *
-    Disallow: /";
-        die();
-    }
-
-    // This must be set
-    if($error === false)
-    {
-        $error = true;
-    }
-    // Haven't done anything? Page doesn't exist.
-    if($title == "Error" && is_bool($error))
-    {
-    error("No such page", 404);
-    }
-    headerend:
-
-    echo<<<'EOD'
-
-<!DOCTYPE HTML PUBLIC "-//W3C// DTD HTML 4.01// EN"
-   "http://www.w3.org/TR/html4/strict.dtd">
-<html>
-<head>
-<script type = "text/javascript">
-
-  var _gaq = _gaq || [];
-  _gaq.push(['_setAccount', 'UA-38773634-1']);
-  _gaq.push(['_trackPageview']);
-
-  (function() {
-    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-  })();
-
-</script>
-<link rel = "shortcut icon" href="/favicon.ico">
-EOD;
-
-    if(isset($insertrss)) {
-        echo '<link rel = "alternate" type = "application/rss+xml" title = "RSS" href="'.$insertrss.'">'."\n";
-    }
-    echo '<meta http-equiv = "Content-type" content = "text/html;charset = ISO-8859-1">';
-
-    if(isset($keywords)) {
-        if($keywords != "") {
-            $keywords = ", ".$keywords;
-        }
-        echo "<meta name = \"keywords\" content = \"bitcoin, search, data$keywords\">\n";
-    }
-    if(isset($description))
-        echo "<meta name = \"description\" content = \"$description\">\n";
-
-    echo<<<"EOD"
-<title>$title - Bitcoin Block Explorer</title>
-<style type = "text/css">
-.infoList{list-style-type:none;margin-left:0;padding-left:0}
-table{border-collapse:collapse}
-table, td, th{border:1px solid black;padding:4px}
-div.hugeCell{width:300px;overflow:auto}
-div.hugeData{width:700px;overflow:auto}
-#footer{text-align:center;font-size:smaller;margin-top:2em}
-div#shortlink{font-size:smaller;margin-top:-1.5em;margin-bottom:-1em;margin-left:0.5em}
-.help{cursor:help}
-</style>
-<script type = "text/javascript">
-function highlightNamedAnchor()
-{
-    if(location.hash != "")
-    {
-        document.getElementsByName(location.hash.substr(1, location.hash.length))[0].parentNode.parentNode.style.backgroundColor = "#FFFDD0";
-    }
-}
-function informHelp()
-{
-    alert("These question mark links produce help text when you hover your mouse cursor over them.");
-}
-</script>
-</head>
-<body onLoad = "highlightNamedAnchor()">
-EOD;
-
-    // error handling for header errors
-    if(!is_bool($error)) {
-        echo "<h1>Error</h1>";
-        echo $error;
-        goto end;
-    }
-
-    // /search
-    if($req->page == "search")
-    {
-        $donesomething = false;
-        if(!empty($transactions))
-        {
-            echo "<h3>Transactions</h3>\n";
-            echo "<ul>\n";
-            foreach ($transactions as $i)
-            {
-                echo "<li><a href=\"{$rootpath}tx/$i\">$i</a></li>\n";
-                $donesomething = true;
-            }
-            echo "</ul>\n";
-        }
-        if(!empty($addresses))
-        {
-            echo "<h3>Addresses</h3>\n";
-            echo "<ul>\n";
-            foreach ($addresses as $i)
-            {
-                echo "<li><a href=\"{$rootpath}address/$i\">$i</a></li>\n";
-                $donesomething = true;
-            }
-            echo "</ul>\n";
-        }
-        if(!empty($blocks))
-        {
-            echo "<h3>Blocks</h3>\n";
-            echo "<ul>\n";
-            foreach ($blocks as $i)
-            {
-                echo "<li><a href=\"{$rootpath}block/$i\">$i</a></li>\n";
-                $donesomething = true;
-            }
-            echo "</ul>\n";
-        }
-        if($donesomething === false)
-        {
-            error("No results.");
-            goto end;
-        }
-        else
-        {
-            echo "<p>Note: results may not be complete if the search would return more than 100 items.</p>\n";
-        }
-    }
-
-    end:
-
-    echo<<<'EOD'
-<div id = "footer"><hr><a href="/">Bitcoin Block Explorer</a> (Mirror ad: <a href="https://www.privateinternetaccess.com/" title = "VPN Service">VPN Service</a>) - Donate: <a href="/address/1Cvvr8AsCfbbVQ2xoWiFD1Gb2VRbGsEf28">1Cvvr8AsCfbbVQ2xoWiFD1Gb2VRbGsEf28</a></div>
-</body>
-</html>
-EOD;
-
 }
