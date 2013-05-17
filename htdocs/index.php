@@ -3,6 +3,13 @@
 include_once 'includes/config.inc';
 include_once 'includes/http.inc';
 
+if(MAINTENANCE_MODE && $_SERVER["REMOTE_ADDR"] != MAINTENANCE_MODE_ADMINIP) {
+    senderror(503);
+    header("Content-Type: text/plain");
+    echo "Maintenance mode: Bitcoin Block Explorer will be back shortly";
+    die();
+}
+
 /**
  * Returns the equivalent of Apache's $_SERVER['REQUEST_URI'] variable.
  *
