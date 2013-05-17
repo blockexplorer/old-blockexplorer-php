@@ -155,8 +155,6 @@ class Request {
 }
 
 $req = new Request();
-//var_dump($req); die();
-
 if($req->app == "stats") {
 
     ini_set("zlib.output_compression","Off");
