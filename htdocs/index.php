@@ -154,21 +154,20 @@ class Request {
     }
 }
 
-$req = new Request();
-if($req->app == "stats") {
+function route() {
+    $req = new Request();
+    switch($req->app) {
+        case "stats":
+        case "explore":
 
-    ini_set("zlib.output_compression","Off");
-    require "includes/app_stats.inc";
+            require "includes/app_{$req->app}.inc";
+            call_user_func("app_" . $req->app, $req);
 
-    app_stats($req);
+            break;
 
-} else if ($req->app == "explore") {
-
-    require "includes/app_explore.inc";
-    app_explore($req);
-
-} else {
-
-    die("unknown app: " . $req->app);
-
+        default:
+            die("unknown app: " . $req->app);
+    }
 }
+
+route();
