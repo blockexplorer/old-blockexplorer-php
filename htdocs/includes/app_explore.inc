@@ -196,7 +196,6 @@ function view_default($vars, $page) {
 }
 
 function model_home(&$vars, $params) {
-    $vars['checkpoint'] = CHECKPOINT;
     $vars['keywords'] = array();
     
     $latestblock = SQL::s("SELECT max(number) FROM blocks;");

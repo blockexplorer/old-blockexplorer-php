@@ -16,10 +16,6 @@ ton of processing to make certain tasks, such as tracking transactions, easier. 
 
 <p>Thanks to <a href="https://www.privateinternetaccess.com/" title = "VPN Service">Private Internet Access</a> for running a mirror of Bitcoin Block Explorer. They've asked me to advertise their site: <a href="https://www.privateinternetaccess.com/" title = "VPN Service">VPN Service</a> (accepts Bitcoin!).</p>
 
-{if $latestblock < $checkpoint}
-<p><span style = "color:red">Notice:</span> The block database is currently being reloaded (probably to enable some cool new feature). You can refresh this page to see the progress.</p>
-{/if}
-
 <h3>Search</h3>
 <p>You can enter a block number, address, block hash, transaction hash, hash160. Hashes are expressed in hexadecimal.</p>
 <form action="/search" method="post" ><p><input type="text" name="q" size="50"><input type="submit" value="Search"></p></form>

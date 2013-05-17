@@ -8,8 +8,6 @@ define('SITEMAP_URLS_PER_SECTION', 10000);
 define('MAINTENANCE_MODE', false);
 define('MAINTENANCE_MODE_ADMINIP', '192.168.1.1');
 
-define("CHECKPOINT", 128281);
-
 define('CACHE_ENABLED', false);
 define('CACHE_DIR', '/tmp/bbe');
 define('CACHE_DIR_LEVELS', 1);
@@ -33,6 +31,5 @@ class TestnetConfig {
                         "target" => "127.0.0.1",
                         "port" => 8331);
 }
-
 date_default_timezone_set('UTC');
 
