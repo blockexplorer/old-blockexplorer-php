@@ -72,13 +72,6 @@ class SQL {
     // singleton alias
     static function s($arg, $params = false) { return self::singleton($arg, $params); }
 
-    // Get weird hybrid array/dictionary
-    static function a($arg, $params = false) {
-        return pg_fetch_array(SQL($arg, $params));
-    }
-
-
-
     // Get number of rows
     static function count($arg, $params = false) {
         return pg_num_rows(SQL($arg, $params));
