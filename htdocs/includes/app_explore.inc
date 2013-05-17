@@ -314,7 +314,7 @@ function model_block(&$vars, $params) {
                              ORDER BY inputs.id;");
 
     if($next)
-        return array(300, true);
+        return array(CACHE_NOEXPIRE, true);
     else
         return 300;
 }
@@ -716,7 +716,7 @@ function model_sitemap(&$vars, $params) {
 
         $query = SQL($sql, array($start, $urls_per_section));
         if(SQL::count($query) == $urls_per_section)
-            $cache_ttl = 604800;
+            $cache_ttl = CACHE_NOEXPIRE;
 
         $vars['query'] = $query;
         $vars['priority'] = $priority;

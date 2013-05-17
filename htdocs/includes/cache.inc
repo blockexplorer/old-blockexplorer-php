@@ -3,6 +3,7 @@
 require_once('config.inc');
 
 define('CACHE_ETAG_HASH', '__hash__');
+define('CACHE_NOEXPIRE', -1);
 
 class CacheError extends Exception {
 }
@@ -26,11 +27,11 @@ class Cache {
     static $dir_levels = CACHE_DIR_LEVELS;
 
     static $enabled = CACHE_ENABLED;
-    static $etag_magic = CACHE_ETAG_MAGIC;
+    static $app_magic = CACHE_APP_MAGIC;
 
     // set etag for this URI and expires headers. 
     // If browser has seen our etag, return a 304 Not modified
-    // if no etag_token is provided, will default to etag_magic
+    // if no etag_token is provided, will default to app_magic
 
     static function handle_client_side_etag($etag_token = null, $ttl = null)
     {
@@ -42,8 +43,8 @@ class Cache {
             $etag_token = null;
 
         $etag = sprintf('W/"%s"', 
-                        ($etag_token !== null) ? ("{$etag_token}-" . (string)self::$etag_magic) :
-                                                 (string)self::$etag_magic);
+                        ($etag_token !== null) ? ("{$etag_token}-" . (string)self::$app_magic) :
+                                                 (string)self::$app_magic);
         header("ETag: $etag");
 
         if($ttl !== false)
@@ -68,7 +69,7 @@ class Cache {
         if($etag === true) 
             $etag = "true";
 
-        $header = implode(';', array(time() + $ttl,
+        $header = implode(';', array($ttl == CACHE_NOEXPIRE ? 0 : time() + $ttl,
                                      strlen($data),
                                      crc32($data),
                                      $etag));
@@ -89,7 +90,7 @@ class Cache {
     }
 
     static function _cached_path($key) {
-        $key = md5($key);
+        $key = md5((string)self::$app_magic . $key);
 
         $path = "";
         for($i = 0; $i < self::$dir_levels; $i++)
@@ -122,7 +123,7 @@ class Cache {
         $etag = ($header[3] === "true" ? true : 
                                          $header[3]);
         
-        if(empty($time) || empty($length) || empty($chk))
+        if(empty($length) || empty($chk))
             return false;
         
         $locked_delete = function($fpath) {
@@ -137,7 +138,7 @@ class Cache {
         };
 
         // delete expired item in cache
-        if($time < time()) {
+        if($time && $time < time()) {
             fclose($fh);
             $locked_delete($fpath);
             return false;
