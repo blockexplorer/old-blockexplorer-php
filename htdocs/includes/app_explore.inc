@@ -772,6 +772,41 @@ function model_sitemap(&$vars, $params) {
     return array($cache_ttl, CACHE_ETAG_HASH);
 }
 
+function model_rssa(&$vars, $params) {
+
+    $address = preg_replace('/\.xml$/', '', $params[0]);
+
+    if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || !Address::checkAddress($address))
+        throw new BadRequest("Invalid address");
+
+    $hash160 = Address::toHash160($address);
+    $query = SQL("SELECT to_char(blocks.time AT TIME ZONE 'UTC', 'Dy, DD Mon YYYY HH24:MI:SS +0000') AS time, 
+                         outputs.value AS value, 
+                         outputs.index AS oid, 
+                         blocks.number AS number, 
+                         encode(outputs.tx, 'hex') AS tx 
+
+                  FROM outputs JOIN blocks ON 
+                       (outputs.block = blocks.hash)
+
+                  WHERE outputs.hash160 = decode($1, 'hex') 
+                  ORDER BY outputs.id DESC LIMIT 20", 
+
+                  $hash160);
+
+    $vars['address' ] = $address;
+    $vars['query'] = $query;
+
+    $last_tx = SQL::d($query);
+    SQL::seek($query, 0);
+
+    $vars['builddate'] = $last_tx ? $last_tx['time'] : null;
+
+    header("Content-type: application/xml; charset=iso-8859-1");
+
+    return array(30, $last_tx['number']);
+}
+
 function old_app_explore($req) {
     global $error;
     global $title;
@@ -787,79 +822,6 @@ function old_app_explore($req) {
         error("Bitcoin Block Explorer will be back shortly.", 503);
         $title = "Maintenance mode";
         goto headerend;
-    }
-
-    if($req->page == "rssa")
-    {
-        header("Content-type: application/xml; charset = iso-8859-1");
-        $address = substr($req->params[0], 0, strlen($req->params[0])-4);
-        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) ||strlen($address)>36 || ! Address::checkAddress($address))
-        {
-            senderror(400);
-            header("Content-type: text/plain");
-            echo "ERROR: invalid address";
-            die();
-        }
-        $hash160 = Address::toHash160($address);
-        $query = SQL("SELECT to_char(blocks.time AT TIME ZONE 'UTC', 'Dy, DD Mon YYYY HH24:MI:SS +0000') AS time, 
-                             outputs.value AS value, 
-                             outputs.index AS oid, 
-                             blocks.number AS number, 
-                             encode(outputs.tx, 'hex') AS tx 
-
-                      FROM outputs JOIN blocks ON 
-                           (outputs.block = blocks.hash)
-
-                      WHERE outputs.hash160 = decode($1, 'hex') 
-                      ORDER BY outputs.id DESC LIMIT 20;", 
-
-                      $hash160);
-
-        $onetx = SQL::a($query);
-        if($onetx === false)
-        {
-            Cache::handle_client_side_etag("e");
-        }
-        else
-        {
-            $builddate = $onetx["time"];
-            $anchor = substr($onetx["tx"], 0, 16)."o{$onetx["oid"]}";
-            Cache::handle_client_side_etag($anchor);
-        }
-        echo '<?xml version = "1.0" encoding = "ISO-8859-1" ?>'."\n";
-        // echo ""."\n";
-        echo '<rss version = "2.0" xmlns:atom = "http://www.w3.org/2005/Atom">'."\n";
-        echo '<channel>'."\n";
-        echo "<description>Latest received transactions for $address</description>"."\n";
-        echo "<link>{$req->scheme}".HOSTNAME."${rootpath}address/$address</link>"."\n";
-        echo "<title>BBE - $address</title>"."\n";
-        echo '<atom:link href="'."{$req->scheme}".HOSTNAME."{$rootpath}rssa/$address.xml".'" rel = "self" type = "application/xml" />'."\n";
-        if(isset($builddate))
-        {
-            echo "<lastBuildDate>$builddate</lastBuildDate>"."\n";
-        }
-        
-        // content
-        while($onetx)
-        {
-            $anchor = substr($onetx["tx"], 0, 16)."o{$onetx["oid"]}";
-            $number = $onetx["number"];
-            $time = $onetx["time"];
-            $amount = removeTrailingZeroes($onetx["value"]);
-            echo "<item>\n";
-            echo "<description>$address received $amount BTC at $time in block number $number.</description>\n";
-            echo "<guid>{$req->scheme}".HOSTNAME."${rootpath}address/$address#$anchor</guid>\n";
-            echo "<pubDate>$time</pubDate>\n";
-            echo "<title>Received $amount BTC</title>\n";
-            echo "<link>{$req->scheme}".HOSTNAME."${rootpath}address/$address#$anchor</link>"."\n";
-            echo "</item>\n";
-            $onetx = SQL::a($query);
-        }
-        // end content
-        echo '</channel>'."\n";
-        echo '</rss>'."\n";
-        
-        die();
     }
 
     // do not index pages that are not blockexplorer.com
