@@ -561,7 +561,7 @@ function page_getreceivedbyaddress($params)
         throw new BadRequest("you must use an integer above 0 for minconf");
 
     $address = $params[0];
-    if(!Address::checkAddress($address))
+    if(!Address::check($address))
         throw new BadRequest("invalid address");
 
     $hash160 = Address::toHash160($address);
@@ -583,7 +583,7 @@ function page_getsentbyaddress($params)
 {
     $address = $params[0];
 
-    if(!Address::checkAddress($address)) 
+    if(!Address::check($address)) 
         throw new BadRequest("invalid address");
 
     $hash160 = Address::toHash160($params[0]);
@@ -601,7 +601,7 @@ function page_addressbalance($params)
 {
     $address = $params[0];
 
-    if(!Address::checkAddress($address))
+    if(!Address::check($address))
         throw new BadRequest("invalid address");
 
     $hash160 = Address::toHash160($params[0]);
@@ -624,7 +624,7 @@ function page_addressbalance($params)
 function page_addressfirstseen($params)
 {
     $address = $params[0];
-    if(!Address::checkAddress($address))
+    if(!Address::check($address))
         throw new BadRequest("invalid address");
 
     $result = SQL::s("SELECT time AT TIME ZONE 'UTC'
@@ -714,7 +714,7 @@ function page_mytransactions($params)
     $addresses = explode('.', trim($params[0]));
     foreach($addresses as &$address)
     {
-        if(!Address::checkAddress($address))
+        if(!Address::check($address))
             throw new BadRequest("One or more addresses are invalid");
 
         $address = "decode('".Address::toHash160($address)."', 'hex')";

@@ -17,7 +17,7 @@ class Address {
         return encodeBase58($hash160);
     }
 
-    static public function checkAddress($addr)
+    static public function check($addr)
     {
         if(!preg_match("/^[1-9A-HJ-NP-Za-km-z]{25,36}$/", $addr))
             return false;

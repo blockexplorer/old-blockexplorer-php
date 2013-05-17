@@ -406,7 +406,7 @@ function model_tx(&$vars, $params) {
 function model_address(&$vars, $params) {
         // get address
         $address = $params[0];
-        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address)>36 || ! Address::checkAddress($address))
+        if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || strlen($address)>36 || ! Address::check($address))
             throw new BadRequest("Invalid address");
 
         $hash160 = strtolower(Address::toHash160($address));
@@ -595,7 +595,7 @@ function redirect_search($vars, $params) {
         return "{$rootpath}address/$address";
 
     // unseen address/hash160
-    if(Address::checkAddress($input))
+    if(Address::check($input))
         return "{$rootpath}address/$input";
 
     if(strlen($input) == 40 && preg_match("/[0-9a-f]{4,130}/", $input))
@@ -746,7 +746,7 @@ function model_rssa(&$vars, $params) {
 
     $address = preg_replace('/\.xml$/', '', $params[0]);
 
-    if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || !Address::checkAddress($address))
+    if(!preg_match('/^[1-9A-HJ-NP-Za-km-z]+$/', $address) || !Address::check($address))
         throw new BadRequest("Invalid address");
 
     $hash160 = Address::toHash160($address);
