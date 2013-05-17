@@ -3,6 +3,8 @@
 define('HOSTNAME', 'dev.blockexplorer.com');
 define('REDIRECT_CANONICAL', false);
 
+define('SITEMAP_URLS_PER_SECTION', 10000);
+
 define('CACHE_ENABLED', false);
 define('CACHE_DIR', '/tmp/bbe');
 define('CACHE_DIR_LEVELS', 1);

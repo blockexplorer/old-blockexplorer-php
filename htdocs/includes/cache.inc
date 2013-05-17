@@ -2,6 +2,7 @@
 
 require_once('config.inc');
 
+define('CACHE_ETAG_HASH', '__hash__');
 
 class CacheError extends Exception {
 }

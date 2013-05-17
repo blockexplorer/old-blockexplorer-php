@@ -200,6 +200,9 @@ function app_explore($req)
             $ttl = $cache_conf;
         }
 
+        if($etag == CACHE_ETAG_HASH)
+            $etag = md5($view);
+
         Cache::put($cache_key, $view, $ttl, $etag);
         if($etag)
             Cache::handle_client_side_etag($etag);
@@ -697,6 +700,78 @@ function page_rawblock($vars, $params) {
     echo $raw;
 }
 
+function model_sitemap(&$vars, $params) {
+
+    if($vars['scheme'] != 'http://') 
+        throw new BadRequest("sitemap not supported via https");
+
+    $cache_ttl = 600;
+    $urls_per_section = SITEMAP_URLS_PER_SECTION;
+
+    if(count($params) == 2) {
+        $vars['sitemapindex'] = false;
+        
+        if(!in_array($params[0], array("a", "t", "b")))
+            throw new BadRequest("no such section");
+
+        $section = $params[0];
+        $start = $params[1] * $urls_per_section;
+
+        if($section == "a") {
+            $sql = "SELECT '/address/' || address AS url,
+                           id
+                    FROM keys";
+
+            $priority = "0.7";
+            $changefreq = "hourly";
+        }
+        if($section == "t") {
+            $sql = "SELECT '/tx/' || encode(hash, 'hex') AS url,
+                           id
+                    FROM transactions";
+            $priority = "0.5";
+            $changefreq = "monthly";
+        }
+        if($section == "b") {
+            $sql = "SELECT '/block/' || encode(hash, 'hex') AS url,
+                           number AS id
+                    FROM blocks";
+            $priority = "0.6";
+            $changefreq = "monthly";
+        }
+
+        $sql .= " ORDER BY id 
+                  OFFSET $1 
+                  LIMIT $2";
+
+        $query = SQL($sql, array($start, $urls_per_section));
+        if(SQL::count($query) == $urls_per_section)
+            $cache_ttl = 604800;
+
+        $vars['query'] = $query;
+        $vars['priority'] = $priority;
+        $vars['changefreq'] = $changefreq;
+
+    } else if (count($params) == 0) {
+        $vars['sitemapindex'] = true;
+
+        $stats = SQL::d("SELECT (SELECT count(number) FROM blocks) AS blocks, 
+                                (SELECT count(id) FROM transactions) AS transactions,                                          
+                                (SELECT count(id) FROM keys) AS addresses;"); 
+
+        $vars['tx_sections'] = ceil($stats["transactions"] / $urls_per_section) - 1;
+        $vars['block_sections'] = ceil($stats["blocks"] / $urls_per_section) - 1;
+        $vars['address_sections'] = ceil($stats["addresses"] / $urls_per_section) - 1;
+
+
+    } else {
+        throw new BadRequest("invalid sitemap url");
+    }
+
+    header("Content-type: text/xml");
+    return array($cache_ttl, CACHE_ETAG_HASH);
+}
+
 function old_app_explore($req) {
     global $error;
     global $title;
@@ -712,121 +787,6 @@ function old_app_explore($req) {
         error("Bitcoin Block Explorer will be back shortly.", 503);
         $title = "Maintenance mode";
         goto headerend;
-    }
-
-    if($req->page == "sitemap")
-    {
-        if($req->scheme == "http://")
-        {
-            $buffer = "";
-            $returnedresults = 0;
-            $interval = 10000;
-            if(isset($req->params[0]) && isset($req->params[1]) && ($req->params[0] == "a" || $req->params[0] == "t" || $req->params[0] == "b") && $req->params[1] >= 0 && $req->params[1]<500)
-            {
-                $start = $req->params[1]*$interval;
-                if($req->params[0] == "a")
-                {
-                    $data = SQL("SELECT '/address/' || address AS url, 
-                                        id 
-                                 FROM keys 
-                                 ORDER BY id 
-
-                                 OFFSET $1 
-                                 LIMIT $2;", array($start, $interval));
-                }
-                if($req->params[0] == "t")
-                {
-                    $data = SQL("SELECT '/tx/' || encode(hash, 'hex') AS url, 
-                                        id 
-                                 FROM transactions 
-                                 ORDER BY id 
-                                 
-                                 OFFSET $1 
-                                 LIMIT $2;", array($start, $interval));
-                }
-                if($req->params[0] == "b")
-                {
-                    $data = SQL("SELECT '/block/' || encode(hash, 'hex') AS url, 
-                                        number AS id 
-                                 FROM blocks 
-                                 ORDER BY id 
-                                 
-                                 OFFSET $1 
-                                 LIMIT $2;", array($start, $interval));
-                }
-                $returnedresults = SQL::count($data);
-                $oneurl = SQL::a($data);
-                $buffer.= '<?xml version = "1.0" encoding = "ISO-8859-1"?>'."\n";
-                $buffer.= '<urlset xmlns = "http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
-                while($oneurl)
-                {
-                    $buffer.= '<url>'."\n";
-                    $buffer.= "<loc>http://".HOSTNAME."{$oneurl["url"]}</loc>"."\n";
-                    if($req->params[0] == "a")
-                    {
-                        $priority = "0.7";
-                        $changefreq = "hourly";
-                    }
-                    if($req->params[0] == "t")
-                    {
-                        $priority = "0.5";
-                        $changefreq = "monthly";
-                    }
-                    if($req->params[0] == "b")
-                    {
-                        $priority = "0.6";
-                        $changefreq = "monthly";
-                    }
-                    if(isset($priority) && isset($changefreq))
-                    {
-                        $buffer.= "<changefreq>$changefreq</changefreq>"."\n";
-                        $buffer.= "<priority>$priority</priority>"."\n";
-                    }
-                    unset($priority, $changefreq);
-                    $buffer.= '</url>'."\n";
-                    $oneurl = SQL::a($data);
-                }
-                $buffer.= '</urlset>';
-            }
-            if(!isset($req->params[0]) && !isset($req->params[1]))
-            {
-                $data = SQL::d("SELECT (SELECT count(number) FROM blocks) AS blocks, 
-                                       (SELECT count(id) FROM transactions) AS transactions,                                          
-                                       (SELECT count(id) FROM keys) AS addresses;"); 
-                $totaltx = ceil($data["transactions"]/$interval)-1;
-                $totalblk = ceil($data["blocks"]/$interval)-1;
-                $totaladdr = ceil($data["addresses"]/$interval)-1;
-                
-                $buffer.= '<?xml version = "1.0" encoding = "ISO-8859-1"?>'."\n";
-                $buffer.= '<sitemapindex xmlns = "http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
-                for($i = 0;$i <= $totaltx;$i++)
-                {
-                    $buffer.= "<sitemap>"."\n";
-                    $buffer.= "<loc>http://".HOSTNAME."/sitemap-t-$i.xml</loc>"."\n";
-                    $buffer.= "</sitemap>"."\n";
-                }
-                for($i = 0;$i <= $totaladdr;$i++)
-                {
-                    $buffer.= "<sitemap>"."\n";
-                    $buffer.= "<loc>http://".HOSTNAME."/sitemap-a-$i.xml</loc>"."\n";
-                    $buffer.= "</sitemap>"."\n";
-                }
-                for($i = 0;$i <= $totalblk;$i++)
-                {
-                    $buffer.= "<sitemap>"."\n";
-                    $buffer.= "<loc>http://".HOSTNAME."/sitemap-b-$i.xml</loc>"."\n";
-                    $buffer.= "</sitemap>"."\n";
-                }
-                $buffer.= '</sitemapindex>';
-            }
-            $bufferhash = hash("md4", $buffer);
-
-            Cache::handle_client_side_etag($bufferhash, ($returnedresults == $interval) ? 604800 : 600);
-
-            header("Content-type: text/xml");
-            echo $buffer;
-            die();
-        }
     }
 
     if($req->page == "rssa")
