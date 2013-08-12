@@ -1,0 +1,46 @@
+Liraz's TODO list
+=================
+
+- refactor blockudpate.php (eliminate code duplication for mainnet and
+  testnet blockupdate)
+
+- update rewritten blockupdate.php to use stock bitcoind 0.8. 
+
+  The current version only works with a specially patched version of
+  bitcoind 0.7.
+
+- redesign database schema to reduce diskspace usage. It currently uses
+  10X the disk space that bitcoind uses. Mostly because it stores raw
+  bitcoin data inefficiently over and over again.
+
+- new web design
+
+  - how many transaction confirmations
+
+- add interesting visualizations
+
+Michael's (AKA Theymos) todo list
+=================================
+
+Here was my to-do list for BBE:
+
+- keys should have a foreign key relationship with the transactions they first appeared in. Otherwise reorgs can break addressfirstseen.
+- improve sends with multiple inputs from the same address -- 1MgD6rah5zUgEGYZnNmdpnXMaDR3itKYzU
+- show total work for blocks
+- is totalvalue being counted for duplicate txns? Probably shouldn't be.
+- clicking an address on /address/ pages should highlight the transaction on the new address's side
+- sends to self give wrong balance temporarily in running balance. txns should be combined w/ rowspan
+- address query no longer needs to look at transactions table?
+- fix transaction caching
+- show sequence numbers on HTML pages
+- make rss more visible
+- nethash averages are wrong
+- elapsed time for blocks
+- list (xxxx total) after addresses on block pages?
+- make rss more visible
+- firstbits on address pages
+- better shortlinks
+- deal with dup coinbase "double spends"
+- charts - address/tx
+- rss/email notifications for address
+- rumored/verified address owners
