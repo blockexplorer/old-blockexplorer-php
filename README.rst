@@ -17,17 +17,18 @@ working on blockexplorer.com he decided to pass the torch to Liraz.
 That's me. Unfortunately I don't have a lot of free time either since I
 spend most of it developing TurnKey Linux. So rather than doing
 everything myself the plan was to focus on bootstrapping blockexplorer
-into an open source project, by the Bitcoin community, for the Bitcoin
-community.
+into an open source project abd get more people on board. I'd like
+blockexplorer to become a neutral open source resource by the Bitcoin
+community, for the Bitcoin community.
 
 Rewrite in progress: what I've done so far
 ==========================================
 
 Unfortunately, the original code was in a deeply troubled state. If you
 want to see what I mean, checkout the Initial commit. I very much doubt
-anyone would have had fun working on it it in its original condition so
-I've volunteered for to be the code janitor and do a rewrite. It's dirty
-work, but somebody has to do it.
+anyone would have had fun working on it in its original condition so I
+volunteered myself for janitorial duty and have started a rewrite. It's
+dirty work, but somebody has to do it!
 
 What I've done so far:
 
@@ -49,12 +50,12 @@ I *nearly* finished the rewrite but then I ran out of time around May
 2013 and had to get back to working on TurnKey (we had a release coming
 out). I was planning on getting back to this in a few weeks, put
 everything into working order and then release the code in working
-condition but additional delays have convinced me it would be a better
-idea publish the incomplete development code rather than continue to sit
-on it.
+condition. Unfortunately that didn't happen and continuing details have
+convinced me it would be a better to just publish the incomplete
+development code rather than continue to sit on it.
 
 This way perhaps it can at least serve as a useful educational resource
-for people interested in Bitcoin.  OK, so maybe I'm also secretly hoping
+for people interested in Bitcoin. OK, so maybe I'm also secretly hoping
 someone will be interested in this enough to pick up the gauntlet and
 make some progress until I get back to this.
 
