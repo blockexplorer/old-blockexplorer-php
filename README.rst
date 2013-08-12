@@ -17,7 +17,7 @@ working on blockexplorer.com he decided to pass the torch to Liraz.
 That's me. Unfortunately I don't have a lot of free time either since I
 spend most of it developing TurnKey Linux. So rather than doing
 everything myself the plan was to focus on bootstrapping blockexplorer
-into an open source project abd get more people on board. I'd like
+into an open source project and get more people on board. I'd like
 blockexplorer to become a neutral open source resource by the Bitcoin
 community, for the Bitcoin community.
 
