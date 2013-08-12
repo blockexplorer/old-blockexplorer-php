@@ -66,6 +66,15 @@ Prerequisite: depends on an older custom patched bitcoind
 
 https://github.com/lirazsiri/blockexplorer.com-bitcoind
 
+Setting up the database
+-----------------------
+
+explore.schema contains the current database schema. 
+
+We grant write permissions to the blockupdate user (used to run the
+blockupdate script) and read permissions to the www-data user - under
+which we run the main blockexplorer web application.
+
 Setting up the web application
 ------------------------------
 

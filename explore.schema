@@ -1,0 +1,496 @@
+--
+-- PostgreSQL database dump
+--
+
+SET statement_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET search_path = public, pg_catalog;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: blocks; Type: TABLE; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE TABLE blocks (
+    hash bytea NOT NULL,
+    prev bytea NOT NULL,
+    number integer NOT NULL,
+    root bytea NOT NULL,
+    bits bigint NOT NULL,
+    nonce bigint NOT NULL,
+    raw text NOT NULL,
+    "time" timestamp with time zone NOT NULL,
+    totalvalue numeric,
+    transactions bigint,
+    size integer NOT NULL
+);
+
+
+ALTER TABLE public.blocks OWNER TO blockupdate;
+
+--
+-- Name: inputs; Type: TABLE; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE TABLE inputs (
+    id bigint NOT NULL,
+    tx bytea NOT NULL,
+    prev bytea,
+    index bigint,
+    value numeric NOT NULL,
+    scriptsig text NOT NULL,
+    hash160 bytea,
+    type text NOT NULL,
+    block bytea NOT NULL
+);
+
+
+ALTER TABLE public.inputs OWNER TO blockupdate;
+
+--
+-- Name: inputs_id_seq; Type: SEQUENCE; Schema: public; Owner: blockupdate
+--
+
+CREATE SEQUENCE inputs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.inputs_id_seq OWNER TO blockupdate;
+
+--
+-- Name: inputs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: blockupdate
+--
+
+ALTER SEQUENCE inputs_id_seq OWNED BY inputs.id;
+
+
+--
+-- Name: keys; Type: TABLE; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE TABLE keys (
+    hash160 bytea NOT NULL,
+    address text NOT NULL,
+    pubkey bytea,
+    firstseen bytea NOT NULL,
+    id bigint NOT NULL
+);
+
+
+ALTER TABLE public.keys OWNER TO blockupdate;
+
+--
+-- Name: keys_id_seq; Type: SEQUENCE; Schema: public; Owner: blockupdate
+--
+
+CREATE SEQUENCE keys_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.keys_id_seq OWNER TO blockupdate;
+
+--
+-- Name: keys_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: blockupdate
+--
+
+ALTER SEQUENCE keys_id_seq OWNED BY keys.id;
+
+
+--
+-- Name: outputs; Type: TABLE; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE TABLE outputs (
+    id bigint NOT NULL,
+    tx bytea NOT NULL,
+    index bigint NOT NULL,
+    value numeric NOT NULL,
+    scriptpubkey text NOT NULL,
+    hash160 bytea,
+    type text NOT NULL,
+    block bytea NOT NULL
+);
+
+
+ALTER TABLE public.outputs OWNER TO blockupdate;
+
+--
+-- Name: outputs_id_seq; Type: SEQUENCE; Schema: public; Owner: blockupdate
+--
+
+CREATE SEQUENCE outputs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.outputs_id_seq OWNER TO blockupdate;
+
+--
+-- Name: outputs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: blockupdate
+--
+
+ALTER SEQUENCE outputs_id_seq OWNED BY outputs.id;
+
+
+--
+-- Name: special; Type: TABLE; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE TABLE special (
+    tx bytea NOT NULL,
+    block bytea NOT NULL,
+    subtype text
+);
+
+
+ALTER TABLE public.special OWNER TO blockupdate;
+
+--
+-- Name: transactions; Type: TABLE; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE TABLE transactions (
+    hash bytea NOT NULL,
+    block bytea NOT NULL,
+    raw text NOT NULL,
+    fee numeric,
+    id bigint NOT NULL,
+    size integer NOT NULL
+);
+
+
+ALTER TABLE public.transactions OWNER TO blockupdate;
+
+--
+-- Name: transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: blockupdate
+--
+
+CREATE SEQUENCE transactions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.transactions_id_seq OWNER TO blockupdate;
+
+--
+-- Name: transactions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: blockupdate
+--
+
+ALTER SEQUENCE transactions_id_seq OWNED BY transactions.id;
+
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: blockupdate
+--
+
+ALTER TABLE ONLY inputs ALTER COLUMN id SET DEFAULT nextval('inputs_id_seq'::regclass);
+
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: blockupdate
+--
+
+ALTER TABLE ONLY keys ALTER COLUMN id SET DEFAULT nextval('keys_id_seq'::regclass);
+
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: blockupdate
+--
+
+ALTER TABLE ONLY outputs ALTER COLUMN id SET DEFAULT nextval('outputs_id_seq'::regclass);
+
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: blockupdate
+--
+
+ALTER TABLE ONLY transactions ALTER COLUMN id SET DEFAULT nextval('transactions_id_seq'::regclass);
+
+
+--
+-- Name: blocks_number_key; Type: CONSTRAINT; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+ALTER TABLE ONLY blocks
+    ADD CONSTRAINT blocks_number_key UNIQUE (number);
+
+
+--
+-- Name: blocks_pkey; Type: CONSTRAINT; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+ALTER TABLE ONLY blocks
+    ADD CONSTRAINT blocks_pkey PRIMARY KEY (hash);
+
+
+--
+-- Name: keys_address_key; Type: CONSTRAINT; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+ALTER TABLE ONLY keys
+    ADD CONSTRAINT keys_address_key UNIQUE (address);
+
+
+--
+-- Name: keys_pkey; Type: CONSTRAINT; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+ALTER TABLE ONLY keys
+    ADD CONSTRAINT keys_pkey PRIMARY KEY (hash160);
+
+
+--
+-- Name: keys_pubkey_key; Type: CONSTRAINT; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+ALTER TABLE ONLY keys
+    ADD CONSTRAINT keys_pubkey_key UNIQUE (pubkey);
+
+
+--
+-- Name: transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+ALTER TABLE ONLY transactions
+    ADD CONSTRAINT transactions_pkey PRIMARY KEY (hash);
+
+
+--
+-- Name: encode_blocks_hash; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX encode_blocks_hash ON blocks USING btree (encode(hash, 'hex'::text));
+
+
+--
+-- Name: encode_keys_hash160; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX encode_keys_hash160 ON keys USING btree (encode(hash160, 'hex'::text));
+
+
+--
+-- Name: encode_keys_pubkey; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX encode_keys_pubkey ON keys USING btree (encode(pubkey, 'hex'::text));
+
+
+--
+-- Name: encode_transactions_hash; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX encode_transactions_hash ON transactions USING btree (encode(hash, 'hex'::text));
+
+
+--
+-- Name: inputs_block; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX inputs_block ON inputs USING btree (block);
+
+
+--
+-- Name: inputs_hash160; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX inputs_hash160 ON inputs USING btree (hash160);
+
+
+--
+-- Name: inputs_prev; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX inputs_prev ON inputs USING btree (prev);
+
+
+--
+-- Name: inputs_tx; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX inputs_tx ON inputs USING btree (tx);
+
+
+--
+-- Name: outputs_block; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX outputs_block ON outputs USING btree (block);
+
+
+--
+-- Name: outputs_hash160; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX outputs_hash160 ON outputs USING btree (hash160);
+
+
+--
+-- Name: outputs_tx; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX outputs_tx ON outputs USING btree (tx);
+
+
+--
+-- Name: special_block; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX special_block ON special USING btree (block);
+
+
+--
+-- Name: special_tx; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX special_tx ON special USING btree (tx);
+
+
+--
+-- Name: transactions_block; Type: INDEX; Schema: public; Owner: blockupdate; Tablespace: 
+--
+
+CREATE INDEX transactions_block ON transactions USING btree (block);
+
+
+--
+-- Name: inputs_tx_fkey; Type: FK CONSTRAINT; Schema: public; Owner: blockupdate
+--
+
+ALTER TABLE ONLY inputs
+    ADD CONSTRAINT inputs_tx_fkey FOREIGN KEY (tx) REFERENCES transactions(hash) ON DELETE CASCADE;
+
+
+--
+-- Name: outputs_tx_fkey; Type: FK CONSTRAINT; Schema: public; Owner: blockupdate
+--
+
+ALTER TABLE ONLY outputs
+    ADD CONSTRAINT outputs_tx_fkey FOREIGN KEY (tx) REFERENCES transactions(hash) ON DELETE CASCADE;
+
+
+--
+-- Name: special_block_fkey; Type: FK CONSTRAINT; Schema: public; Owner: blockupdate
+--
+
+ALTER TABLE ONLY special
+    ADD CONSTRAINT special_block_fkey FOREIGN KEY (block) REFERENCES blocks(hash) ON DELETE CASCADE;
+
+
+--
+-- Name: transactions_block_fkey; Type: FK CONSTRAINT; Schema: public; Owner: blockupdate
+--
+
+ALTER TABLE ONLY transactions
+    ADD CONSTRAINT transactions_block_fkey FOREIGN KEY (block) REFERENCES blocks(hash) ON DELETE CASCADE;
+
+
+--
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+
+--
+-- Name: blocks; Type: ACL; Schema: public; Owner: blockupdate
+--
+
+REVOKE ALL ON TABLE blocks FROM PUBLIC;
+REVOKE ALL ON TABLE blocks FROM blockupdate;
+GRANT ALL ON TABLE blocks TO blockupdate;
+GRANT SELECT ON TABLE blocks TO "www-data";
+
+
+--
+-- Name: inputs; Type: ACL; Schema: public; Owner: blockupdate
+--
+
+REVOKE ALL ON TABLE inputs FROM PUBLIC;
+REVOKE ALL ON TABLE inputs FROM blockupdate;
+GRANT ALL ON TABLE inputs TO blockupdate;
+GRANT SELECT ON TABLE inputs TO "www-data";
+
+
+--
+-- Name: keys; Type: ACL; Schema: public; Owner: blockupdate
+--
+
+REVOKE ALL ON TABLE keys FROM PUBLIC;
+REVOKE ALL ON TABLE keys FROM blockupdate;
+GRANT ALL ON TABLE keys TO blockupdate;
+GRANT SELECT ON TABLE keys TO "www-data";
+
+
+--
+-- Name: outputs; Type: ACL; Schema: public; Owner: blockupdate
+--
+
+REVOKE ALL ON TABLE outputs FROM PUBLIC;
+REVOKE ALL ON TABLE outputs FROM blockupdate;
+GRANT ALL ON TABLE outputs TO blockupdate;
+GRANT SELECT ON TABLE outputs TO "www-data";
+
+
+--
+-- Name: special; Type: ACL; Schema: public; Owner: blockupdate
+--
+
+REVOKE ALL ON TABLE special FROM PUBLIC;
+REVOKE ALL ON TABLE special FROM blockupdate;
+GRANT ALL ON TABLE special TO blockupdate;
+GRANT SELECT ON TABLE special TO "www-data";
+
+
+--
+-- Name: transactions; Type: ACL; Schema: public; Owner: blockupdate
+--
+
+REVOKE ALL ON TABLE transactions FROM PUBLIC;
+REVOKE ALL ON TABLE transactions FROM blockupdate;
+GRANT ALL ON TABLE transactions TO blockupdate;
+GRANT SELECT ON TABLE transactions TO "www-data";
+
+
+--
+-- PostgreSQL database dump complete
+--
+
