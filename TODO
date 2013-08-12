@@ -19,6 +19,11 @@ Liraz's TODO list
 
 - add interesting visualizations
 
+- rewrite in node.js
+
+- explore hacking bitcoind so that we don't have to keep another copy of
+  the blockchain in the database.
+
 Michael's (AKA Theymos) todo list
 =================================
 
