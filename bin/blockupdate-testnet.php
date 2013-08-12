@@ -1,7 +1,7 @@
 #!/usr/bin/php
 <?php
-require_once '/var/www/blockexplorer.com/htdocs/testnet/jsonrpc.php';
-require_once '/var/www/blockexplorer.com/htdocs/testnet/util.php';
+require_once 'oldcode/testnet/jsonrpc.php';
+require_once 'oldcode/testnet/util.php';
 
 $lockfile=fopen("/tmp/testblockupdate.lock","w+");
 if(!flock($lockfile,LOCK_EX | LOCK_NB))

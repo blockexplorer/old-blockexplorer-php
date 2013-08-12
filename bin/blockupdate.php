@@ -1,8 +1,8 @@
 #!/usr/bin/php
 <?php
 
-require_once '/var/www/blockexplorer.com/htdocs/jsonrpc.php';
-require_once '/var/www/blockexplorer.com/htdocs/util.php';
+require_once 'oldcode/jsonrpc.php';
+require_once 'oldcode/util.php';
 
 $CONFLICT_LOG = "/var/www/blockexplorer.com/logs/conflict.log";
 
