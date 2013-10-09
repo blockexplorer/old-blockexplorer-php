@@ -65,7 +65,7 @@ Setup instructions
 Prerequisite: depends on an older custom patched bitcoind
 ---------------------------------------------------------
 
-https://github.com/lirazsiri/blockexplorer.com-bitcoind
+https://github.com/lirazsiri/blockexplorer-bitcoind
 
 Setting up the database
 -----------------------
