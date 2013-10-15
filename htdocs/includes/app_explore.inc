@@ -651,6 +651,7 @@ function page_rawtx($vars, $params) {
 
     Cache::handle_client_side_etag();
     header("Content-type: text/plain");
+    header("Access-Control-Allow-Origin: *");
     echo $raw;
 }
 
@@ -667,6 +668,7 @@ function page_rawblock($vars, $params) {
 
     Cache::handle_client_side_etag();
     header("Content-type: text/plain");
+    header("Access-Control-Allow-Origin: *");
     echo $raw;
 }
 
