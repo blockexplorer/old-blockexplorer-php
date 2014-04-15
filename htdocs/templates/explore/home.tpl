@@ -10,7 +10,7 @@
 <p>Bitcoin Block Explorer allows you to easily view information about the
 <a href="https://en.bitcoin.it/wiki/Blocks">blocks</a>, <a href="https://en.bitcoin.it/wiki/Address">addresses</a>, and <a href="https://en.bitcoin.it/wiki/Transactions">transactions</a> created by <a href="http://bitcoin.org">Bitcoin</a>.
 It uses the <a href="https://bitcointalk.org/index.php?topic=724.0">getblock</a> patch by jgarzik, but also does a
-ton of processing to make certain tasks, such as tracking transactions, easier. Help text is included in the tooltips produced by superscript question marks: {help("Like this")}. All times are UTC. Tell me (theymos) if you find any bugs.
+ton of processing to make certain tasks, such as tracking transactions, easier. Help text is included in the tooltips produced by superscript question marks: {help("Like this")}. All times are UTC. Tell me (Liraz Siri) if you find any bugs.
 
 <p>Some data from Bitcoin Block Explorer is available through the machine-readable <a href="{$rootpath}q">Real-Time Stats pages</a>.
 
