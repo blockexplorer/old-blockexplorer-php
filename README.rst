@@ -1,8 +1,13 @@
 Blockexplorer now based on Insight
 ==================================
 
-Blockexplorer.com is now based on BitPay's Insight. I'm keeping the
-old PHP code around mostly for educational/reference purposes.
+Blockexplorer.com is now based on BitPay's Insight. This old PHP code
+no longer runs any part of the site. I'm keeping it around mostly 
+for educational/reference purposes.
+
+The new sources are here:
+
+https://github.com/bitcoin-blockexplorer/
 
 Here be dragons!
 ================
